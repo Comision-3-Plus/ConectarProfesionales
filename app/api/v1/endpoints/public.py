@@ -4,12 +4,15 @@ Endpoints públicos (sin autenticación requerida).
 from typing import List
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.core.database import get_db
-from app.models.portfolio import PortfolioItem
+from app.models.portfolio import PortfolioItem, PortfolioImagen
 from app.models.professional import Profesional
+from app.models.user import Usuario
+from app.models.enums import VerificationStatus
 from app.schemas.portfolio import PortfolioItemRead
+from app.schemas.professional import PublicProfileResponse
 
 router = APIRouter()
 
@@ -45,3 +48,55 @@ def get_professional_portfolio(
     )
     
     return [PortfolioItemRead.model_validate(item) for item in portfolio_items]
+
+
+@router.get(
+    "/professional/{profesional_id}",
+    response_model=PublicProfileResponse,
+    summary="Ver perfil público completo de un profesional"
+)
+def get_professional_public_profile(
+    profesional_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene el perfil público completo y detallado de un profesional.
+    
+    Este endpoint es la "página de producto" del profesional.
+    Incluye:
+    - Datos básicos (nombre, apellido, avatar)
+    - Datos profesionales (nivel, radio, tarifa, acepta_instant)
+    - Oficios que ofrece
+    - Portfolio completo con imágenes
+    
+    Endpoint público, no requiere autenticación.
+    Solo muestra profesionales APROBADOS.
+    """
+    # Query optimizada con joinedload para evitar N+1 queries
+    profesional = (
+        db.query(Profesional)
+        .options(
+            joinedload(Profesional.usuario),
+            joinedload(Profesional.oficios),
+            joinedload(Profesional.portfolio_items).joinedload(PortfolioItem.imagenes)
+        )
+        .filter(Profesional.id == profesional_id)
+        .first()
+    )
+    
+    # Verificar existencia
+    if not profesional:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profesional no encontrado"
+        )
+    
+    # Solo mostrar profesionales aprobados
+    if profesional.estado_verificacion != VerificationStatus.APROBADO:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profesional no disponible"
+        )
+    
+    # Convertir a schema público (sin info sensible)
+    return PublicProfileResponse.from_professional(profesional)

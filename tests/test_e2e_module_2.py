@@ -893,6 +893,272 @@ def test_module_2_complete_integration(client: httpx.Client):
 
 
 # ============================================================================
+# TEST 12: PUBLIC PROFILE VIEW (Get Professional Public Profile)
+# ============================================================================
+
+def test_public_profile_view(client: httpx.Client):
+    """
+    Test public profile view endpoint:
+    1. Admin creates oficio and professional gets approved
+    2. Professional sets up complete profile (avatar, oficios, portfolio)
+    3. Public views complete profile (no auth required)
+    4. Verify all nested data (oficios, portfolio with images)
+    5. Test non-existent professional (404)
+    6. Test non-approved professional (404)
+    """
+    print("\n" + "="*70)
+    print("TEST 12: PUBLIC PROFILE VIEW - Página de Producto")
+    print("="*70)
+    
+    # Setup
+    admin_token = login_user(client, ADMIN_EMAIL, ADMIN_PASSWORD)
+    
+    # -------------------------------------------------------------------------
+    # STEP 1: Create and Approve Professional
+    # -------------------------------------------------------------------------
+    print("\n[STEP 1] Creating and approving professional...")
+    pro_email = generate_unique_email("pro_public_profile")
+    pro_password = "Password123!"
+    
+    pro_data = register_user(
+        client, pro_email, pro_password,
+        "María", "González", "PROFESIONAL"
+    )
+    pro_token = login_user(client, pro_email, pro_password)
+    print(f"✓ Professional registered: {pro_email}")
+    
+    # Get professional ID
+    response = client.get(
+        "/professional/me",
+        headers={"Authorization": f"Bearer {pro_token}"}
+    )
+    assert response.status_code == 200
+    pro_profile = response.json()
+    profesional_id = pro_profile["id"]
+    
+    # Upload KYC documents (mock)
+    fake_doc = io.BytesIO(b"fake kyc document")
+    response = client.post(
+        "/professional/kyc/upload",
+        headers={"Authorization": f"Bearer {pro_token}"},
+        files={"files": ("documento.pdf", fake_doc, "application/pdf")}
+    )
+    assert response.status_code == 200
+    
+    # Admin approves KYC
+    response = client.post(
+        f"/admin/kyc/approve/{profesional_id}",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    assert response.status_code == 200
+    print(f"✓ Professional approved (ID: {profesional_id})")
+    
+    # -------------------------------------------------------------------------
+    # STEP 2: Upload Avatar
+    # -------------------------------------------------------------------------
+    print("\n[STEP 2] Uploading professional avatar...")
+    fake_avatar = io.BytesIO(b"professional avatar photo")
+    response = client.post(
+        "/users/me/avatar",
+        headers={"Authorization": f"Bearer {pro_token}"},
+        files={"file": ("avatar.jpg", fake_avatar, "image/jpeg")}
+    )
+    assert response.status_code == 200
+    avatar_data = response.json()
+    print(f"✓ Avatar uploaded: {avatar_data['avatar_url']}")
+    
+    # -------------------------------------------------------------------------
+    # STEP 3: Admin Creates Oficio
+    # -------------------------------------------------------------------------
+    print("\n[STEP 3] Admin creating oficio...")
+    response = client.post(
+        "/admin/oficios",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "nombre": f"Electricista {datetime.now().timestamp()}",
+            "descripcion": "Instalaciones y reparaciones eléctricas"
+        }
+    )
+    assert response.status_code == 201
+    oficio = response.json()
+    oficio_id = oficio["id"]
+    print(f"✓ Oficio created: {oficio['nombre']}")
+    
+    # -------------------------------------------------------------------------
+    # STEP 4: Professional Assigns Oficio
+    # -------------------------------------------------------------------------
+    print("\n[STEP 4] Professional assigning oficio...")
+    response = client.put(
+        "/professional/profile/oficios",
+        headers={"Authorization": f"Bearer {pro_token}"},
+        json={"oficio_ids": [oficio_id]}
+    )
+    assert response.status_code == 200
+    print("✓ Oficio assigned")
+    
+    # -------------------------------------------------------------------------
+    # STEP 5: Professional Creates Portfolio with Images
+    # -------------------------------------------------------------------------
+    print("\n[STEP 5] Professional creating portfolio...")
+    
+    # Create first portfolio item
+    response = client.post(
+        "/professional/portfolio",
+        headers={"Authorization": f"Bearer {pro_token}"},
+        json={
+            "titulo": "Instalación eléctrica residencial",
+            "descripcion": "Instalación completa de cableado en casa de 3 habitaciones"
+        }
+    )
+    assert response.status_code == 201
+    portfolio1 = response.json()
+    item1_id = portfolio1["id"]
+    
+    # Upload 2 images to first item
+    for i in range(2):
+        fake_image = io.BytesIO(f"portfolio image {i}".encode())
+        response = client.post(
+            f"/professional/portfolio/{item1_id}/image",
+            headers={"Authorization": f"Bearer {pro_token}"},
+            files={"file": (f"trabajo1_{i}.jpg", fake_image, "image/jpeg")}
+        )
+        assert response.status_code == 200
+    
+    # Create second portfolio item
+    response = client.post(
+        "/professional/portfolio",
+        headers={"Authorization": f"Bearer {pro_token}"},
+        json={
+            "titulo": "Reparación de tablero eléctrico",
+            "descripcion": "Reemplazo de disyuntores y upgrade de tablero principal"
+        }
+    )
+    assert response.status_code == 201
+    portfolio2 = response.json()
+    item2_id = portfolio2["id"]
+    
+    # Upload 3 images to second item
+    for i in range(3):
+        fake_image = io.BytesIO(f"portfolio image {i}".encode())
+        response = client.post(
+            f"/professional/portfolio/{item2_id}/image",
+            headers={"Authorization": f"Bearer {pro_token}"},
+            files={"file": (f"trabajo2_{i}.jpg", fake_image, "image/jpeg")}
+        )
+        assert response.status_code == 200
+    
+    print("✓ Created 2 portfolio items with 5 total images")
+    
+    # -------------------------------------------------------------------------
+    # STEP 6: Public Views Complete Profile (NO AUTH)
+    # -------------------------------------------------------------------------
+    print("\n[STEP 6] Public viewing complete professional profile (no auth)...")
+    response = client.get(f"/public/professional/{profesional_id}")
+    assert response.status_code == 200, f"Failed to get public profile: {response.text}"
+    
+    public_profile = response.json()
+    print(f"✓ Public profile retrieved")
+    print(f"  Name: {public_profile['nombre']} {public_profile['apellido']}")
+    print(f"  Nivel: {public_profile['nivel']}")
+    print(f"  Radio cobertura: {public_profile['radio_cobertura_km']} km")
+    print(f"  Acepta instant: {public_profile['acepta_instant']}")
+    print(f"  Avatar URL: {public_profile.get('avatar_url')}")
+    
+    # -------------------------------------------------------------------------
+    # STEP 7: Verify Nested Data
+    # -------------------------------------------------------------------------
+    print("\n[STEP 7] Verifying nested data structure...")
+    
+    # Verify basic info
+    assert public_profile["id"] == profesional_id
+    assert public_profile["nombre"] == "María"
+    assert public_profile["apellido"] == "González"
+    assert public_profile["avatar_url"] is not None
+    print("✓ Basic info correct")
+    
+    # Verify NO sensitive data
+    assert "email" not in public_profile
+    assert "estado_verificacion" not in public_profile
+    print("✓ No sensitive data exposed")
+    
+    # Verify oficios
+    assert "oficios" in public_profile
+    assert len(public_profile["oficios"]) == 1
+    assert public_profile["oficios"][0]["nombre"].startswith("Electricista")
+    print(f"✓ Oficios: {len(public_profile['oficios'])} items")
+    
+    # Verify portfolio with images
+    assert "portfolio" in public_profile
+    assert len(public_profile["portfolio"]) == 2
+    print(f"✓ Portfolio: {len(public_profile['portfolio'])} items")
+    
+    # Verify first portfolio item images
+    item1 = next(item for item in public_profile["portfolio"] if item["id"] == item1_id)
+    assert len(item1["imagenes"]) == 2
+    assert item1["imagenes"][0]["orden"] == 0
+    assert item1["imagenes"][1]["orden"] == 1
+    print(f"  Item 1: {len(item1['imagenes'])} images")
+    
+    # Verify second portfolio item images
+    item2 = next(item for item in public_profile["portfolio"] if item["id"] == item2_id)
+    assert len(item2["imagenes"]) == 3
+    print(f"  Item 2: {len(item2['imagenes'])} images")
+    
+    # -------------------------------------------------------------------------
+    # STEP 8: Test Non-Existent Professional (404)
+    # -------------------------------------------------------------------------
+    print("\n[STEP 8] Testing non-existent professional...")
+    fake_uuid = "00000000-0000-0000-0000-000000000000"
+    response = client.get(f"/public/professional/{fake_uuid}")
+    assert response.status_code == 404
+    print("✓ Non-existent professional correctly rejected (404)")
+    
+    # -------------------------------------------------------------------------
+    # STEP 9: Test Non-Approved Professional (404)
+    # -------------------------------------------------------------------------
+    print("\n[STEP 9] Testing non-approved professional visibility...")
+    
+    # Create another professional but DON'T approve
+    pro2_email = generate_unique_email("pro_not_approved")
+    pro2_password = "Password123!"
+    register_user(client, pro2_email, pro2_password, "No", "Aprobado", "PROFESIONAL")
+    pro2_token = login_user(client, pro2_email, pro2_password)
+    
+    # Get pro2 ID
+    response = client.get(
+        "/professional/me",
+        headers={"Authorization": f"Bearer {pro2_token}"}
+    )
+    pro2_profile = response.json()
+    pro2_id = pro2_profile["id"]
+    
+    # Try to view non-approved professional's public profile
+    response = client.get(f"/public/professional/{pro2_id}")
+    assert response.status_code == 404, f"Expected 404 for non-approved, got {response.status_code}"
+    print("✓ Non-approved professional correctly hidden (404)")
+    
+    # -------------------------------------------------------------------------
+    # STEP 10: Verify Query Optimization (Single Request)
+    # -------------------------------------------------------------------------
+    print("\n[STEP 10] Verifying query optimization...")
+    # This is a smoke test - in production we'd use SQL logging
+    # to verify joinedload reduces queries to 1-2
+    import time
+    start = time.time()
+    response = client.get(f"/public/professional/{profesional_id}")
+    end = time.time()
+    
+    assert response.status_code == 200
+    elapsed_ms = (end - start) * 1000
+    print(f"✓ Profile loaded in {elapsed_ms:.2f}ms")
+    print("  (Should be fast due to joinedload optimization)")
+    
+    print("\n" + "="*70)
+    print("✓ TEST 12 PASSED: Public Profile View Working!")
+    print("="*70)
+
+
+# ============================================================================
 # MAIN EXECUTION
 # ============================================================================
 
@@ -914,6 +1180,7 @@ if __name__ == "__main__":
     3. ✓ Servicios Instantáneos (Admin creates, Professional assigns)
     4. ✓ Portfolio Management (Create, Upload, View, Delete)
     5. ✓ Complete Module 2 Integration Flow
+    12. ✓ Public Profile View (GET /public/professional/{id})
     
     """)
     

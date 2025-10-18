@@ -1,11 +1,15 @@
 """
 Schemas Pydantic para Profesionales.
 """
-from typing import Optional
+from typing import Optional, List, TYPE_CHECKING
 from uuid import UUID
 from decimal import Decimal
 from pydantic import BaseModel, Field, ConfigDict
 from app.models.enums import VerificationStatus, ProfessionalLevel
+
+if TYPE_CHECKING:
+    from app.schemas.oficio import OficioRead
+    from app.schemas.portfolio import PortfolioItemRead
 
 
 class ProfessionalProfileUpdate(BaseModel):
@@ -102,3 +106,52 @@ class ProfessionalLocationUpdate(BaseModel):
         le=180,
         description="Longitud (coordenada geográfica)"
     )
+
+
+class PublicProfileResponse(BaseModel):
+    """
+    Schema para el perfil público detallado del profesional.
+    Incluye todos los datos visibles para clientes potenciales.
+    NO incluye información sensible como email o estado de verificación.
+    """
+    # Datos básicos del profesional
+    id: UUID
+    nombre: str
+    apellido: str
+    avatar_url: Optional[str]
+    
+    # Datos profesionales
+    nivel: ProfessionalLevel
+    radio_cobertura_km: int
+    acepta_instant: bool
+    tarifa_por_hora: Optional[Decimal]
+    
+    # Relaciones anidadas
+    oficios: List = []
+    portfolio: List = []
+    
+    model_config = ConfigDict(from_attributes=True)
+    
+    @classmethod
+    def from_professional(cls, professional):
+        """
+        Constructor helper para crear desde un objeto Profesional con todas sus relaciones cargadas.
+        """
+        from app.schemas.oficio import OficioRead
+        from app.schemas.portfolio import PortfolioItemRead
+        
+        return cls(
+            # Datos básicos
+            id=professional.id,
+            nombre=professional.usuario.nombre,
+            apellido=professional.usuario.apellido,
+            avatar_url=professional.usuario.avatar_url,
+            # Datos profesionales
+            nivel=professional.nivel,
+            radio_cobertura_km=professional.radio_cobertura_km,
+            acepta_instant=professional.acepta_instant,
+            tarifa_por_hora=professional.tarifa_por_hora,
+            # Relaciones
+            oficios=[OficioRead.model_validate(oficio) for oficio in professional.oficios],
+            portfolio=[PortfolioItemRead.model_validate(item) for item in professional.portfolio_items]
+        )
