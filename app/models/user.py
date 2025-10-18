@@ -1,0 +1,84 @@
+"""
+Modelo de Usuario - Entidad base para todos los usuarios del sistema.
+"""
+from sqlalchemy import Column, String, Boolean, Enum
+from sqlalchemy.orm import relationship
+from app.models.base import Base, TimestampMixin, UUIDMixin
+from app.models.enums import UserRole
+
+
+class Usuario(Base, UUIDMixin, TimestampMixin):
+    """
+    Tabla de usuarios del sistema.
+    Representa tanto clientes como profesionales (discriminado por 'rol').
+    """
+    __tablename__ = "usuarios"
+    
+    # Información de autenticación
+    email = Column(
+        String(255), 
+        unique=True, 
+        nullable=False, 
+        index=True,
+        comment="Email único del usuario (usado para login)"
+    )
+    password_hash = Column(
+        String(255), 
+        nullable=False,
+        comment="Hash bcrypt de la contraseña"
+    )
+    
+    # Información personal
+    nombre = Column(
+        String(100), 
+        nullable=False,
+        comment="Nombre del usuario"
+    )
+    apellido = Column(
+        String(100), 
+        nullable=False,
+        comment="Apellido del usuario"
+    )
+    avatar_url = Column(
+        String(500),
+        nullable=True,
+        comment="URL o ruta del avatar del usuario"
+    )
+    
+    # Rol y estado
+    rol = Column(
+        Enum(UserRole, name="user_role_enum", create_type=True),
+        nullable=False,
+        default=UserRole.CLIENTE,
+        index=True,
+        comment="Rol del usuario en el sistema"
+    )
+    is_active = Column(
+        Boolean, 
+        default=True, 
+        nullable=False,
+        index=True,
+        comment="Indica si el usuario está activo"
+    )
+    
+    # Relaciones
+    profesional_info = relationship(
+        "Profesional",
+        back_populates="usuario",
+        uselist=False,  # Relación 1-a-1
+        cascade="all, delete-orphan",
+        lazy="joined"  # Cargar automáticamente cuando se consulta el usuario
+    )
+    
+    def __repr__(self):
+        return f"<Usuario(id={self.id}, email='{self.email}', rol='{self.rol.value}')>"
+    
+    @property
+    def nombre_completo(self):
+        """Propiedad de conveniencia para obtener el nombre completo"""
+        return f"{self.nombre} {self.apellido}"
+    
+    @property
+    def es_profesional(self):
+        """Verifica si el usuario tiene perfil de profesional"""
+        return self.rol == UserRole.PROFESIONAL and self.profesional_info is not None
