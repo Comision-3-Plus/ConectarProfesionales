@@ -34,3 +34,12 @@ class OfertaRead(BaseModel):
     fecha_actualizacion: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+
+class OfertaAcceptResponse(BaseModel):
+    """Schema para respuesta de aceptación de oferta con link de pago"""
+    oferta: OfertaRead
+    trabajo_id: UUID
+    payment_preference_id: str
+    payment_url: str
+    mensaje: str = "Oferta aceptada. Procede al pago para confirmar el trabajo."

@@ -30,6 +30,16 @@ class Settings(BaseSettings):
     # Webhook Security (para Cloud Function)
     WEBHOOK_API_KEY: str
     
+    # MercadoPago
+    MERCADOPAGO_ACCESS_TOKEN: Optional[str] = "TEST-token-not-configured"
+    MERCADOPAGO_PUBLIC_KEY: Optional[str] = None
+    
+    # URLs para callbacks de MercadoPago
+    MP_SUCCESS_URL: str = "http://localhost:3000/payment/success"
+    MP_FAILURE_URL: str = "http://localhost:3000/payment/failure"
+    MP_PENDING_URL: str = "http://localhost:3000/payment/pending"
+    MP_NOTIFICATION_URL: str = "http://localhost:8000/api/v1/webhook/mercadopago"
+    
     @property
     def DATABASE_URL(self) -> str:
         """Construye la URL de conexión a PostgreSQL"""

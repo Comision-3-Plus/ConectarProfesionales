@@ -3,6 +3,7 @@ Modelo de Oferta - Ofertas económicas formales del profesional al cliente
 """
 from sqlalchemy import Column, String, Text, Numeric, Enum as SQLEnum, ForeignKey
 from sqlalchemy.orm import relationship
+from sqlalchemy.dialects.postgresql import UUID
 from app.models.base import Base, TimestampMixin, UUIDMixin
 import enum
 
@@ -24,14 +25,14 @@ class Oferta(Base, UUIDMixin, TimestampMixin):
     
     # Relaciones con usuarios
     profesional_id = Column(
-        String(36),
+        UUID(as_uuid=True),
         ForeignKey("usuarios.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
         comment="ID del profesional que hace la oferta"
     )
     cliente_id = Column(
-        String(36),
+        UUID(as_uuid=True),
         ForeignKey("usuarios.id", ondelete="CASCADE"),
         nullable=False,
         index=True,

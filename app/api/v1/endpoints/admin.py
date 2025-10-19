@@ -12,10 +12,13 @@ from app.core.database import get_db
 from app.schemas.admin import ProfessionalPendingReview
 from app.schemas.oficio import OficioCreate, OficioRead
 from app.schemas.servicio_instantaneo import ServicioInstantaneoCreate, ServicioInstantaneoRead
+from app.schemas.trabajo import TrabajoRead, TrabajoCancelarResponse
 from app.models.professional import Profesional
 from app.models.oficio import Oficio
 from app.models.servicio_instantaneo import ServicioInstantaneo
-from app.models.enums import VerificationStatus, ProfessionalLevel
+from app.models.trabajo import Trabajo
+from app.models.enums import VerificationStatus, ProfessionalLevel, EstadoEscrow
+from app.services.mercadopago_service import mercadopago_service
 
 
 router = APIRouter(
@@ -220,3 +223,201 @@ def list_servicios_instantaneos_por_oficio(
         .all()
     )
     return [ServicioInstantaneoRead.model_validate(s) for s in servicios]
+
+
+# ==========================================
+# ENDPOINTS DE GESTIÓN DE TRABAJOS
+# ==========================================
+
+@router.post(
+    "/trabajo/{trabajo_id}/cancelar",
+    response_model=TrabajoCancelarResponse,
+    summary="Cancelar trabajo y reembolsar al cliente",
+    dependencies=[Depends(get_current_admin_user)]
+)
+def cancelar_trabajo(
+    trabajo_id: UUID,
+    db: Session = Depends(get_db),
+):
+    """
+    Cancela un trabajo y procesa un reembolso completo (100%) al cliente.
+    
+    **Este endpoint es CRÍTICO para el flujo de devolución de dinero.**
+    
+    Solo los administradores pueden cancelar trabajos.
+    
+    Flujo:
+    1. Busca el trabajo
+    2. Verifica que el dinero esté en escrow (PAGADO_EN_ESCROW)
+    3. Valida que haya un payment_id de MercadoPago
+    4. Ejecuta refund completo en MercadoPago
+    5. Actualiza el trabajo a estado CANCELADO_REEMBOLSADO
+    6. Retorna confirmación
+    
+    **Casos de uso:**
+    - Disputa entre cliente y profesional
+    - Profesional no cumplió el servicio
+    - Fraude detectado
+    - Cliente solicita cancelación antes de iniciar trabajo
+    
+    Args:
+        trabajo_id: UUID del trabajo a cancelar
+        
+    Returns:
+        TrabajoCancelarResponse con:
+            - trabajo: Datos del trabajo actualizado
+            - refund_id: ID del reembolso en MercadoPago
+            - mensaje: Confirmación de la operación
+        
+    Raises:
+        404: Si el trabajo no existe
+        400: Si el trabajo no está en estado correcto
+        400: Si no hay payment_id (no se puede reembolsar)
+        500: Si hay error con el refund de MercadoPago
+    """
+    # 1. Buscar el trabajo
+    trabajo = db.query(Trabajo).filter(Trabajo.id == trabajo_id).first()
+    
+    if not trabajo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trabajo no encontrado"
+        )
+    
+    # 2. Verificar que el dinero esté en escrow
+    if trabajo.estado_escrow != EstadoEscrow.PAGADO_EN_ESCROW:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No se puede cancelar un trabajo en estado {trabajo.estado_escrow.value}. "
+                   f"Solo se pueden cancelar trabajos en estado PAGADO_EN_ESCROW."
+        )
+    
+    # 3. Validar que haya payment_id
+    if not trabajo.mercadopago_payment_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede reembolsar: no hay payment_id de MercadoPago asociado"
+        )
+    
+    print("=" * 60)
+    print("🚫 CANCELACIÓN DE TRABAJO Y REEMBOLSO")
+    print(f"   Trabajo ID: {trabajo.id}")
+    print(f"   Cliente: {trabajo.cliente_id}")
+    print(f"   Profesional: {trabajo.profesional_id}")
+    print(f"   Precio Original: ${trabajo.precio_final}")
+    print(f"   Payment ID: {trabajo.mercadopago_payment_id}")
+    print("=" * 60)
+    
+    # 4. Ejecutar refund en MercadoPago (reembolso completo = 100%)
+    try:
+        refund_response = mercadopago_service.crear_refund(
+            payment_id=trabajo.mercadopago_payment_id,
+            monto=None,  # None = reembolso total
+        )
+        
+        if not refund_response:
+            raise Exception("No se recibió respuesta del servicio de refund")
+        
+        refund_id = refund_response.get("id")
+        refund_status = refund_response.get("status")
+        
+        print(f"💰 Refund ejecutado:")
+        print(f"   Refund ID: {refund_id}")
+        print(f"   Status: {refund_status}")
+        print(f"   Monto: ${trabajo.precio_final} (100%)")
+        
+    except Exception as e:
+        print(f"❌ Error ejecutando refund: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error procesando reembolso: {str(e)}"
+        )
+    
+    # 5. Actualizar el trabajo en BD
+    trabajo.estado_escrow = EstadoEscrow.CANCELADO_REEMBOLSADO
+    
+    # Limpiar montos ya que se devolvió todo
+    trabajo.comision_plataforma = 0
+    trabajo.monto_liberado = 0
+    
+    db.add(trabajo)
+    db.commit()
+    db.refresh(trabajo)
+    
+    print("=" * 60)
+    print("✅ TRABAJO CANCELADO Y REEMBOLSADO")
+    print(f"   Estado: {trabajo.estado_escrow.value}")
+    print(f"   Refund ID: {refund_id}")
+    print(f"   Cliente recibió: ${trabajo.precio_final}")
+    print("=" * 60)
+    
+    # 6. Retornar respuesta
+    return TrabajoCancelarResponse(
+        trabajo=TrabajoRead.model_validate(trabajo),
+        refund_id=refund_id,
+        mensaje=f"Trabajo cancelado. Se reembolsaron ${trabajo.precio_final} al cliente."
+    )
+
+
+@router.get(
+    "/trabajos",
+    response_model=List[TrabajoRead],
+    summary="Listar todos los trabajos (admin)",
+    dependencies=[Depends(get_current_admin_user)]
+)
+def list_all_trabajos(
+    db: Session = Depends(get_db),
+):
+    """
+    Lista todos los trabajos del sistema.
+    Útil para monitoreo y administración.
+    """
+    trabajos = (
+        db.query(Trabajo)
+        .order_by(Trabajo.fecha_creacion.desc())
+        .all()
+    )
+    
+    return [TrabajoRead.model_validate(t) for t in trabajos]
+
+
+@router.post(
+    "/trabajo/{trabajo_id}/simular-pago",
+    response_model=TrabajoRead,
+    summary="[TESTING] Simular pago completado",
+    dependencies=[Depends(get_current_admin_user)]
+)
+def simular_pago_completado(
+    trabajo_id: UUID,
+    db: Session = Depends(get_db),
+):
+    """
+    **SOLO PARA TESTING**: Simula que el pago se completó, actualizando
+    el estado del trabajo a PAGADO_EN_ESCROW.
+    
+    En producción, esto lo hace automáticamente el webhook de MercadoPago.
+    """
+    trabajo = db.query(Trabajo).filter(Trabajo.id == trabajo_id).first()
+    
+    if not trabajo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trabajo no encontrado"
+        )
+    
+    if trabajo.estado_escrow != EstadoEscrow.PENDIENTE_PAGO:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El trabajo debe estar en PENDIENTE_PAGO. Estado actual: {trabajo.estado_escrow.value}"
+        )
+    
+    # Actualizar estado
+    trabajo.estado_escrow = EstadoEscrow.PAGADO_EN_ESCROW
+    trabajo.mercadopago_payment_id = f"MOCK-PAYMENT-{str(trabajo_id)[:8]}"
+    
+    db.commit()
+    db.refresh(trabajo)
+    
+    print(f"🧪 [TESTING] Trabajo {trabajo_id} actualizado a PAGADO_EN_ESCROW")
+    
+    return TrabajoRead.model_validate(trabajo)

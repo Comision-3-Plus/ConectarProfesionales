@@ -4,12 +4,13 @@ Endpoints públicos (sin autenticación requerida).
 from typing import List
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.core.database import get_db
 from app.models.portfolio import PortfolioItem, PortfolioImagen
 from app.models.professional import Profesional
 from app.models.user import Usuario
+from app.models.resena import Resena
 from app.models.enums import VerificationStatus
 from app.schemas.portfolio import PortfolioItemRead
 from app.schemas.professional import PublicProfileResponse
@@ -66,19 +67,32 @@ def get_professional_public_profile(
     Incluye:
     - Datos básicos (nombre, apellido, avatar)
     - Datos profesionales (nivel, radio, tarifa, acepta_instant)
+    - Estadísticas de reseñas (rating_promedio, total_resenas)
     - Oficios que ofrece
     - Portfolio completo con imágenes
+    - Lista de reseñas con nombre del cliente (ordenadas por fecha, más nuevas primero)
     
     Endpoint público, no requiere autenticación.
     Solo muestra profesionales APROBADOS.
+    
+    **Optimización de Performance:**
+    - Usa `selectinload` para reseñas (evita N+1 queries)
+    - Carga eagerly el nombre del cliente con cada reseña
+    - Las reseñas vienen ordenadas por fecha (más nuevas primero)
     """
-    # Query optimizada con joinedload para evitar N+1 queries
+    # Query optimizada con joinedload y selectinload para evitar N+1 queries
     profesional = (
         db.query(Profesional)
         .options(
+            # Cargar usuario (datos básicos)
             joinedload(Profesional.usuario),
+            # Cargar oficios
             joinedload(Profesional.oficios),
-            joinedload(Profesional.portfolio_items).joinedload(PortfolioItem.imagenes)
+            # Cargar portfolio con imágenes
+            joinedload(Profesional.portfolio_items).joinedload(PortfolioItem.imagenes),
+            # Cargar reseñas con cliente (optimizado con selectinload para evitar N+1)
+            selectinload(Profesional.resenas_recibidas)
+            .joinedload(Resena.cliente)
         )
         .filter(Profesional.id == profesional_id)
         .first()
@@ -97,6 +111,13 @@ def get_professional_public_profile(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Profesional no disponible"
         )
+    
+    # Ordenar reseñas por fecha (más nuevas primero) en Python
+    # ya que selectinload no permite order_by directamente
+    profesional.resenas_recibidas.sort(
+        key=lambda r: r.fecha_creacion,
+        reverse=True
+    )
     
     # Convertir a schema público (sin info sensible)
     return PublicProfileResponse.from_professional(profesional)

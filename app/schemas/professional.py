@@ -108,6 +108,18 @@ class ProfessionalLocationUpdate(BaseModel):
     )
 
 
+class PayoutInfoUpdate(BaseModel):
+    """
+    Schema para actualizar la información de pago del profesional.
+    """
+    payout_account: str = Field(
+        ...,
+        min_length=1,
+        max_length=255,
+        description="CVU, CBU o Alias de Mercado Pago"
+    )
+
+
 class PublicProfileResponse(BaseModel):
     """
     Schema para el perfil público detallado del profesional.
@@ -126,9 +138,18 @@ class PublicProfileResponse(BaseModel):
     acepta_instant: bool
     tarifa_por_hora: Optional[Decimal]
     
+    # Estadísticas de reseñas (denormalizadas)
+    rating_promedio: float = Field(
+        description="Rating promedio del profesional"
+    )
+    total_resenas: int = Field(
+        description="Cantidad total de reseñas recibidas"
+    )
+    
     # Relaciones anidadas
     oficios: List = []
     portfolio: List = []
+    resenas: List = []
     
     model_config = ConfigDict(from_attributes=True)
     
@@ -139,6 +160,7 @@ class PublicProfileResponse(BaseModel):
         """
         from app.schemas.oficio import OficioRead
         from app.schemas.portfolio import PortfolioItemRead
+        from app.schemas.resena import ResenaPublicRead
         
         return cls(
             # Datos básicos
@@ -151,7 +173,11 @@ class PublicProfileResponse(BaseModel):
             radio_cobertura_km=professional.radio_cobertura_km,
             acepta_instant=professional.acepta_instant,
             tarifa_por_hora=professional.tarifa_por_hora,
+            # Estadísticas de reseñas
+            rating_promedio=float(professional.rating_promedio),
+            total_resenas=professional.total_resenas,
             # Relaciones
             oficios=[OficioRead.model_validate(oficio) for oficio in professional.oficios],
-            portfolio=[PortfolioItemRead.model_validate(item) for item in professional.portfolio_items]
+            portfolio=[PortfolioItemRead.model_validate(item) for item in professional.portfolio_items],
+            resenas=[ResenaPublicRead.from_resena(resena) for resena in professional.resenas_recibidas]
         )

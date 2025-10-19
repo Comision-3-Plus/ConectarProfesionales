@@ -1,7 +1,7 @@
 """
 Modelo de Profesional - Extiende Usuario con información específica de profesionales.
 """
-from sqlalchemy import Column, Integer, Numeric, Boolean, Enum, ForeignKey, Index
+from sqlalchemy import Column, Integer, Numeric, Boolean, Enum, ForeignKey, Index, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from geoalchemy2 import Geography
@@ -73,6 +73,15 @@ class Profesional(Base, UUIDMixin, TimestampMixin):
     )
     
     # ==========================================
+    # CAMPOS DE PAGO
+    # ==========================================
+    payout_account = Column(
+        String(255),
+        nullable=True,
+        comment="CVU, CBU o Alias de Mercado Pago para pagos al profesional"
+    )
+    
+    # ==========================================
     # CAMPOS DE GAMIFICACIÓN
     # ==========================================
     nivel = Column(
@@ -88,6 +97,23 @@ class Profesional(Base, UUIDMixin, TimestampMixin):
         default=0.20,
         nullable=False,
         comment="Tasa de comisión actual (0.00 a 1.00, donde 0.20 = 20%)"
+    )
+    
+    # ==========================================
+    # CAMPOS DE RESEÑAS (DENORMALIZADOS)
+    # ==========================================
+    rating_promedio = Column(
+        Numeric(3, 2),  # 3 dígitos totales, 2 decimales (ej: 4.75)
+        default=0.00,
+        nullable=False,
+        comment="Rating promedio denormalizado (evita calcular AVG en cada búsqueda)"
+    )
+    
+    total_resenas = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Total de reseñas recibidas (denormalizado para performance)"
     )
     
     # Relación inversa con Usuario

@@ -26,3 +26,11 @@ class ProfessionalLevel(str, enum.Enum):
     PLATA = "PLATA"
     ORO = "ORO"
     DIAMANTE = "DIAMANTE"
+
+
+class EstadoEscrow(str, enum.Enum):
+    """Estados del escrow de dinero en un trabajo"""
+    PENDIENTE_PAGO = "PENDIENTE_PAGO"
+    PAGADO_EN_ESCROW = "PAGADO_EN_ESCROW"
+    LIBERADO = "LIBERADO"
+    CANCELADO_REEMBOLSADO = "CANCELADO_REEMBOLSADO"

@@ -17,7 +17,8 @@ from app.schemas.professional import (
     ProfessionalProfileRead, 
     ProfessionalProfileUpdate, 
     ProfessionalServiciosInstantUpdate,
-    ProfessionalLocationUpdate
+    ProfessionalLocationUpdate,
+    PayoutInfoUpdate
 )
 from app.schemas.oficio import ProfessionalOficiosUpdate, OficioRead
 from app.schemas.servicio_instantaneo import ServicioInstantaneoRead
@@ -227,6 +228,40 @@ def update_professional_location(
     db.refresh(current_professional)
     
     return ProfessionalProfileRead.from_professional(current_professional)
+
+
+@router.put(
+    "/payout-info",
+    status_code=status.HTTP_200_OK,
+    summary="Actualizar información de pago del profesional"
+)
+def update_payout_info(
+    payout_data: PayoutInfoUpdate,
+    current_professional: Profesional = Depends(get_current_professional),
+    db: Session = Depends(get_db),
+):
+    """
+    Permite al profesional configurar su información de pago.
+    
+    El profesional debe proporcionar su CVU, CBU o Alias de Mercado Pago
+    para poder recibir pagos por los trabajos realizados.
+    
+    Args:
+        payout_account: CVU, CBU o Alias de Mercado Pago
+        
+    Returns:
+        Mensaje de confirmación
+    """
+    current_professional.payout_account = payout_data.payout_account
+    
+    db.add(current_professional)
+    db.commit()
+    
+    return {
+        "status": "ok",
+        "message": "Información de pago actualizada correctamente",
+        "payout_account": payout_data.payout_account
+    }
 
 
 # ==========================================
