@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Reglas para los chats
+    match /chats/{chatId} {
+      // Los usuarios autenticados pueden leer el chat si son participantes
+      allow read: if request.auth != null && 
+                     request.auth.uid in resource.data.participantIds;
+      
+      // Los usuarios pueden crear chats
+      allow create: if request.auth != null &&
+                       request.auth.uid in request.resource.data.participantIds;
+      
+      // Los usuarios pueden actualizar chats si son participantes
+      allow update: if request.auth != null && 
+                       request.auth.uid in resource.data.participantIds;
+      
+      // Reglas para los mensajes dentro de un chat
+      match /messages/{messageId} {
+        // Los participantes del chat pueden leer los mensajes
+        allow read: if request.auth != null && 
+                       request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds;
+        
+        // Los participantes pueden crear mensajes
+        allow create: if request.auth != null && 
+                         request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds &&
+                         request.resource.data.senderId == request.auth.uid;
+        
+        // Solo las Cloud Functions pueden actualizar mensajes (para censura)
+        allow update: if false;
+        
+        // Los usuarios no pueden eliminar mensajes
+        allow delete: if false;
+      }
+    }
+  }
+}

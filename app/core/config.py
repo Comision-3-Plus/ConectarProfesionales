@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     
+    # Webhook Security (para Cloud Function)
+    WEBHOOK_API_KEY: str
+    
     @property
     def DATABASE_URL(self) -> str:
         """Construye la URL de conexión a PostgreSQL"""

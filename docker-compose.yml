@@ -38,6 +38,7 @@ services:
       DEBUG: ${DEBUG}
       API_V1_PREFIX: ${API_V1_PREFIX}
       SECRET_KEY: ${SECRET_KEY}
+      WEBHOOK_API_KEY: ${WEBHOOK_API_KEY}
     ports:
       - "8004:8000"
     volumes:

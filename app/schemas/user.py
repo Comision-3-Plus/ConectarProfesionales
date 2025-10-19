@@ -41,6 +41,8 @@ class UserRead(UserBase):
     is_active: bool
     fecha_creacion: datetime
     avatar_url: Optional[str] = None
+    infracciones_chat: int = 0
+    is_chat_banned: bool = False
     
     model_config = ConfigDict(from_attributes=True)
 

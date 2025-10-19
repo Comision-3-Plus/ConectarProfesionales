@@ -1,7 +1,7 @@
 """
 Modelo de Usuario - Entidad base para todos los usuarios del sistema.
 """
-from sqlalchemy import Column, String, Boolean, Enum
+from sqlalchemy import Column, String, Boolean, Enum, Integer
 from sqlalchemy.orm import relationship
 from app.models.base import Base, TimestampMixin, UUIDMixin
 from app.models.enums import UserRole
@@ -59,6 +59,21 @@ class Usuario(Base, UUIDMixin, TimestampMixin):
         nullable=False,
         index=True,
         comment="Indica si el usuario está activo"
+    )
+    
+    # Sistema de moderación de chat
+    infracciones_chat = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        comment="Contador de infracciones en el chat (intento de pasar datos de contacto)"
+    )
+    is_chat_banned = Column(
+        Boolean,
+        default=False,
+        nullable=False,
+        index=True,
+        comment="Indica si el usuario está baneado del chat por infracciones"
     )
     
     # Relaciones

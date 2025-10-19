@@ -22,7 +22,11 @@ from app.schemas.professional import (
 from app.schemas.oficio import ProfessionalOficiosUpdate, OficioRead
 from app.schemas.servicio_instantaneo import ServicioInstantaneoRead
 from app.schemas.portfolio import PortfolioItemCreate, PortfolioItemRead
+from app.schemas.oferta import OfertaCreate, OfertaRead
 from app.services import kyc_service
+from app.services.firebase_service import firebase_service
+from app.models.oferta import Oferta, EstadoOferta
+from app.models.user import Usuario
 
 router = APIRouter()
 
@@ -388,4 +392,110 @@ def delete_portfolio_item(
     db.commit()
     
     return None
+
+
+# ==========================================
+# ENDPOINTS DE OFERTAS
+# ==========================================
+
+@router.post(
+    "/ofertas",
+    response_model=OfertaRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Crear una oferta económica formal"
+)
+def create_oferta(
+    oferta_data: OfertaCreate,
+    current_professional: Profesional = Depends(get_current_professional),
+    db: Session = Depends(get_db),
+):
+    """
+    Crea una oferta económica formal del profesional al cliente.
+    
+    Este es el único medio válido para proponer un precio en el sistema.
+    NO se debe escribir precios en el chat (serán censurados por el filtro).
+    
+    Flujo:
+    1. El profesional envía una oferta con descripción y precio
+    2. Se guarda en la BD de Postgres con estado OFERTADO
+    3. Se envía un mensaje especial al chat de Firestore (type: "oferta")
+    4. El frontend renderiza una tarjeta de oferta en lugar de un mensaje normal
+    5. El cliente puede aceptar o rechazar desde la tarjeta
+    
+    Args:
+        oferta_data: Datos de la oferta (cliente_id, chat_id, descripcion, precio_final)
+        
+    Returns:
+        La oferta creada
+        
+    Raises:
+        404: Si el cliente no existe
+        400: Si el profesional intenta ofertarse a sí mismo
+    """
+    # Validar que el cliente existe
+    cliente = db.query(Usuario).filter(Usuario.id == oferta_data.cliente_id).first()
+    if not cliente:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cliente no encontrado"
+        )
+    
+    # Validar que no se está ofertando a sí mismo
+    if str(current_professional.usuario_id) == str(oferta_data.cliente_id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No puedes enviarte una oferta a ti mismo"
+        )
+    
+    # Crear la oferta en Postgres
+    nueva_oferta = Oferta(
+        profesional_id=current_professional.usuario_id,
+        cliente_id=oferta_data.cliente_id,
+        chat_id=oferta_data.chat_id,
+        descripcion=oferta_data.descripcion,
+        precio_final=oferta_data.precio_final,
+        estado=EstadoOferta.OFERTADO
+    )
+    
+    db.add(nueva_oferta)
+    db.commit()
+    db.refresh(nueva_oferta)
+    
+    # Enviar mensaje especial al chat de Firestore
+    firebase_success = firebase_service.send_oferta_to_chat(
+        chat_id=oferta_data.chat_id,
+        oferta_id=nueva_oferta.id,
+        profesional_id=current_professional.usuario_id,
+        descripcion=oferta_data.descripcion,
+        precio_final=float(oferta_data.precio_final)
+    )
+    
+    if not firebase_success:
+        print(f"⚠️ No se pudo enviar la oferta al chat de Firestore, pero se guardó en BD")
+    
+    return OfertaRead.model_validate(nueva_oferta)
+
+
+@router.get(
+    "/ofertas",
+    response_model=List[OfertaRead],
+    summary="Listar ofertas enviadas por el profesional"
+)
+def list_ofertas_enviadas(
+    current_professional: Profesional = Depends(get_current_professional),
+    db: Session = Depends(get_db),
+):
+    """
+    Lista todas las ofertas que el profesional ha enviado.
+    Útil para que el profesional vea el historial de sus propuestas.
+    """
+    ofertas = (
+        db.query(Oferta)
+        .filter(Oferta.profesional_id == current_professional.usuario_id)
+        .order_by(Oferta.fecha_creacion.desc())
+        .all()
+    )
+    
+    return [OfertaRead.model_validate(o) for o in ofertas]
+
 
