@@ -8,6 +8,7 @@ from decimal import Decimal
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.user import Usuario
 from app.models.oferta import Oferta, EstadoOferta
 from app.models.trabajo import Trabajo
@@ -19,6 +20,7 @@ from app.schemas.trabajo import TrabajoRead, TrabajoFinalizarResponse, TrabajoCa
 from app.schemas.resena import ResenaCreate, ResenaCreateResponse
 from app.services.firebase_service import firebase_service
 from app.services.mercadopago_service import mercadopago_service
+from app.services import gamification_service
 from typing import List
 
 router = APIRouter()
@@ -462,14 +464,25 @@ def finalizar_trabajo(
     trabajo.comision_plataforma = comision_nuestra
     trabajo.monto_liberado = monto_a_liberar
     
+    # 7.1 Otorgar puntos al profesional por trabajo completado
+    profesional.puntos_experiencia += settings.PUNTOS_POR_TRABAJO
+    
+    # 7.2 Verificar si el profesional subió de nivel (Módulo 7)
+    subio_de_nivel = gamification_service.check_for_level_up(profesional)
+    
     db.add(trabajo)
+    db.add(profesional)
     db.commit()
     db.refresh(trabajo)
+    db.refresh(profesional)
     
     print(f"✅ Trabajo actualizado en BD:")
     print(f"   Estado: {trabajo.estado_escrow.value}")
     print(f"   Comisión guardada: ${trabajo.comision_plataforma}")
     print(f"   Monto liberado: ${trabajo.monto_liberado}")
+    print(f"🎮 Puntos otorgados: +{settings.PUNTOS_POR_TRABAJO} (Total: {profesional.puntos_experiencia})")
+    if subio_de_nivel:
+        print(f"🎉 ¡NIVEL ACTUALIZADO! Ahora es {profesional.nivel.value} (Comisión: {float(profesional.tasa_comision_actual) * 100}%)")
     
     # 8. Ejecutar payout en MercadoPago
     try:
@@ -800,9 +813,21 @@ def crear_resena(
         texto_resena=resena_data.texto_resena,
     )
     
+    # 7.1 Otorgar puntos al profesional según el rating recibido
+    puntos_otorgados = 0
+    if resena_data.rating == 5:
+        puntos_otorgados = settings.PUNTOS_REVIEW_5_ESTRELLAS
+        profesional.puntos_experiencia += puntos_otorgados
+    elif resena_data.rating == 4:
+        puntos_otorgados = settings.PUNTOS_REVIEW_4_ESTRELLAS
+        profesional.puntos_experiencia += puntos_otorgados
+    
     # 8. Actualizar el profesional (denormalización)
     profesional.rating_promedio = Decimal(str(nuevo_promedio))
     profesional.total_resenas = viejo_total + 1
+    
+    # 8.1 Verificar si el profesional subió de nivel (Módulo 7)
+    subio_de_nivel = gamification_service.check_for_level_up(profesional)
     
     # 9. Guardar todo en una sola transacción (ATOMICIDAD)
     db.add(nueva_resena)
@@ -823,10 +848,16 @@ def crear_resena(
     print(f"✅ RESEÑA CREADA EXITOSAMENTE")
     print(f"   Reseña ID: {nueva_resena.id}")
     print(f"   Rating dado: {nueva_resena.rating} estrellas")
+    if puntos_otorgados > 0:
+        print(f"🎮 Puntos otorgados: +{puntos_otorgados} (Total: {profesional.puntos_experiencia})")
+    if subio_de_nivel:
+        print(f"🎉 ¡NIVEL ACTUALIZADO! Ahora es {profesional.nivel.value}")
     print("=" * 60)
     print(f"📊 NUEVO ESTADO DEL PROFESIONAL:")
     print(f"   Rating Promedio: {float(profesional.rating_promedio)} ⭐")
     print(f"   Total Reseñas: {profesional.total_resenas}")
+    print(f"   Nivel: {profesional.nivel.value}")
+    print(f"   Comisión: {float(profesional.tasa_comision_actual) * 100}%")
     print("=" * 60)
     
     # 10. Notificar en el chat (opcional)

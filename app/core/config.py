@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     MP_PENDING_URL: str = "http://localhost:3000/payment/pending"
     MP_NOTIFICATION_URL: str = "http://localhost:8000/api/v1/webhook/mercadopago"
     
+    # Gamificación - Sistema de Puntos
+    PUNTOS_POR_TRABAJO: int = 100
+    PUNTOS_REVIEW_5_ESTRELLAS: int = 50
+    PUNTOS_REVIEW_4_ESTRELLAS: int = 10
+    
     @property
     def DATABASE_URL(self) -> str:
         """Construye la URL de conexión a PostgreSQL"""

@@ -123,13 +123,21 @@ def update_user_status(db: Session, user_id: str, is_active: bool) -> Usuario:
 def authenticate_user(db: Session, email: str, password: str) -> Usuario | None:
     """
     Autentica un usuario por email y contraseña.
+    
+    **IMPORTANTE:** Verifica que el usuario esté activo (is_active=True).
+    Un usuario baneado (is_active=False) no puede autenticarse.
 
     Returns:
-        Usuario si las credenciales son válidas, None si no lo son.
+        Usuario si las credenciales son válidas Y está activo, None si no lo son.
     """
     user = get_user_by_email(db, email=email)
     if not user:
         return None
     if not verify_password(password, user.password_hash):
         return None
+    
+    # ⚠️ VERIFICACIÓN CRÍTICA: Usuario baneado no puede loguearse
+    if not user.is_active:
+        return None
+    
     return user

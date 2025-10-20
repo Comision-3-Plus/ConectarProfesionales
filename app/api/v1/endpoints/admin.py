@@ -6,14 +6,23 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.api.dependencies import get_current_admin_user, get_current_user
 from app.core.database import get_db
-from app.schemas.admin import ProfessionalPendingReview
+from app.schemas.admin import (
+    ProfessionalPendingReview,
+    UserSearchResult,
+    UserBanResponse,
+    UserUnbanResponse,
+    FinancialMetricsResponse,
+    UserMetricsResponse,
+)
 from app.schemas.oficio import OficioCreate, OficioRead
 from app.schemas.servicio_instantaneo import ServicioInstantaneoCreate, ServicioInstantaneoRead
 from app.schemas.trabajo import TrabajoRead, TrabajoCancelarResponse
 from app.models.professional import Profesional
+from app.models.user import Usuario
 from app.models.oficio import Oficio
 from app.models.servicio_instantaneo import ServicioInstantaneo
 from app.models.trabajo import Trabajo
@@ -421,3 +430,384 @@ def simular_pago_completado(
     print(f"🧪 [TESTING] Trabajo {trabajo_id} actualizado a PAGADO_EN_ESCROW")
     
     return TrabajoRead.model_validate(trabajo)
+
+
+# ==========================================
+# ENDPOINTS DE MODERACIÓN DE USUARIOS
+# ==========================================
+
+@router.get(
+    "/users/search",
+    response_model=List[UserSearchResult],
+    summary="Buscar usuarios por email",
+    description="""
+    Busca usuarios en el sistema por email (búsqueda parcial).
+    
+    **Uso:** El admin busca usuarios para obtener su user_id antes de banear/desbanear.
+    
+    **Ejemplo:** Si buscas "juan", encontrará "juan@example.com", "juanperez@gmail.com", etc.
+    """,
+    dependencies=[Depends(get_current_admin_user)]
+)
+def search_users(
+    email: str,
+    db: Session = Depends(get_db)
+) -> List[UserSearchResult]:
+    """
+    Busca usuarios por email (búsqueda parcial case-insensitive).
+    
+    Args:
+        email: Término de búsqueda (ej: "juan", "example.com", etc.)
+        
+    Returns:
+        Lista de usuarios que coinciden con la búsqueda
+        
+    Example:
+        GET /api/v1/admin/users/search?email=juan
+    """
+    if not email or len(email) < 2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El término de búsqueda debe tener al menos 2 caracteres"
+        )
+    
+    # Búsqueda case-insensitive con ILIKE
+    usuarios = (
+        db.query(Usuario)
+        .filter(Usuario.email.ilike(f"%{email}%"))
+        .order_by(Usuario.fecha_creacion.desc())
+        .limit(50)  # Limitar resultados para evitar sobrecarga
+        .all()
+    )
+    
+    print(f"🔍 Admin buscó usuarios con email '{email}': {len(usuarios)} resultados")
+    
+    return [UserSearchResult.model_validate(u) for u in usuarios]
+
+
+@router.post(
+    "/users/{user_id}/ban",
+    response_model=UserBanResponse,
+    summary="Banear usuario (desactivar cuenta)",
+    description="""
+    **MODERACIÓN CRÍTICA:** Desactiva completamente la cuenta de un usuario.
+    
+    El usuario baneado:
+    - ❌ NO podrá iniciar sesión
+    - ❌ NO podrá acceder a ningún endpoint protegido
+    - ❌ Sus sesiones activas quedan invalidadas (is_active=False)
+    
+    **Casos de uso:**
+    - Usuarios que violan términos de servicio
+    - Fraude detectado
+    - Spam o abuso del sistema
+    - Solicitud del usuario de cerrar su cuenta
+    
+    **IMPORTANTE:** Esta acción NO elimina los datos del usuario (RGPD compliance).
+    Solo desactiva el acceso a la plataforma.
+    """,
+    dependencies=[Depends(get_current_admin_user)]
+)
+def ban_user(
+    user_id: UUID,
+    admin_user: Usuario = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+) -> UserBanResponse:
+    """
+    Banea (desactiva) un usuario del sistema.
+    
+    Args:
+        user_id: UUID del usuario a banear
+        
+    Returns:
+        Confirmación del baneo con datos del usuario
+        
+    Raises:
+        404: Si el usuario no existe
+        400: Si se intenta banear a un admin
+        400: Si el usuario ya está baneado
+    """
+    # Buscar el usuario
+    usuario = db.query(Usuario).filter(Usuario.id == user_id).first()
+    
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado"
+        )
+    
+    # Prevenir baneo de admins (seguridad)
+    if usuario.rol.value == "ADMIN":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No se puede banear a un administrador"
+        )
+    
+    # Verificar si ya está baneado
+    if not usuario.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El usuario {usuario.email} ya está baneado"
+        )
+    
+    # BANEAR: Desactivar cuenta
+    usuario.is_active = False
+    db.commit()
+    db.refresh(usuario)
+    
+    print("=" * 70)
+    print("🚫 USUARIO BANEADO")
+    print(f"   Admin: {admin_user.email}")
+    print(f"   Usuario baneado: {usuario.email} (ID: {usuario.id})")
+    print(f"   Rol: {usuario.rol.value}")
+    print(f"   is_active: {usuario.is_active}")
+    print("=" * 70)
+    
+    return UserBanResponse(
+        user_id=usuario.id,
+        email=usuario.email,
+        is_active=usuario.is_active,
+        mensaje=f"Usuario {usuario.email} ha sido baneado exitosamente. No podrá iniciar sesión."
+    )
+
+
+@router.post(
+    "/users/{user_id}/unban",
+    response_model=UserUnbanResponse,
+    summary="Desbanear usuario (reactivar cuenta)",
+    description="""
+    **MODERACIÓN:** Reactiva la cuenta de un usuario previamente baneado.
+    
+    El usuario desbaneado:
+    - ✅ Podrá iniciar sesión nuevamente
+    - ✅ Recupera acceso completo a la plataforma
+    - ✅ Mantiene todos sus datos históricos (trabajos, reseñas, etc.)
+    
+    **Casos de uso:**
+    - Reversión de baneo erróneo
+    - Usuario apeló y fue aceptado
+    - Baneo temporal que ya expiró
+    - Usuario pagó multa o completó proceso de rehabilitación
+    """,
+    dependencies=[Depends(get_current_admin_user)]
+)
+def unban_user(
+    user_id: UUID,
+    admin_user: Usuario = Depends(get_current_admin_user),
+    db: Session = Depends(get_db)
+) -> UserUnbanResponse:
+    """
+    Desbanea (reactiva) un usuario del sistema.
+    
+    Args:
+        user_id: UUID del usuario a desbanear
+        
+    Returns:
+        Confirmación del desbaneo con datos del usuario
+        
+    Raises:
+        404: Si el usuario no existe
+        400: Si el usuario ya está activo (no baneado)
+    """
+    # Buscar el usuario
+    usuario = db.query(Usuario).filter(Usuario.id == user_id).first()
+    
+    if not usuario:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado"
+        )
+    
+    # Verificar si ya está activo
+    if usuario.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"El usuario {usuario.email} ya está activo (no está baneado)"
+        )
+    
+    # DESBANEAR: Reactivar cuenta
+    usuario.is_active = True
+    db.commit()
+    db.refresh(usuario)
+    
+    print("=" * 70)
+    print("✅ USUARIO DESBANEADO")
+    print(f"   Admin: {admin_user.email}")
+    print(f"   Usuario desbaneado: {usuario.email} (ID: {usuario.id})")
+    print(f"   Rol: {usuario.rol.value}")
+    print(f"   is_active: {usuario.is_active}")
+    print("=" * 70)
+    
+    return UserUnbanResponse(
+        user_id=usuario.id,
+        email=usuario.email,
+        is_active=usuario.is_active,
+        mensaje=f"Usuario {usuario.email} ha sido desbaneado exitosamente. Puede iniciar sesión nuevamente."
+    )
+
+
+# ==========================================
+# ENDPOINTS DE MÉTRICAS Y DASHBOARD
+# ==========================================
+
+@router.get(
+    "/metrics/financials",
+    response_model=FinancialMetricsResponse,
+    summary="Obtener métricas financieras del negocio",
+    description="""
+    **Dashboard de Admin:** Muestra las métricas financieras clave del negocio.
+    
+    **Métricas calculadas:**
+    - **total_facturado**: Suma de todos los precios finales de trabajos LIBERADOS
+    - **comision_total**: Suma de todas las comisiones cobradas por la plataforma
+    - **trabajos_completados**: Cantidad de trabajos finalizados exitosamente
+    
+    **Importante:** Solo se cuentan trabajos en estado LIBERADO (dinero ya transferido al profesional).
+    
+    Los trabajos en otros estados (PENDIENTE_PAGO, PAGADO_EN_ESCROW, CANCELADO) NO se incluyen.
+    
+    **Uso:** El admin ve estas métricas al entrar al panel de control para monitorear
+    el volumen de negocio y la salud financiera de la plataforma.
+    """,
+    dependencies=[Depends(get_current_admin_user)]
+)
+def get_financial_metrics(
+    db: Session = Depends(get_db)
+) -> FinancialMetricsResponse:
+    """
+    Calcula y retorna las métricas financieras del negocio.
+    
+    **Queries de agregación con SQLAlchemy:**
+    - func.sum() para calcular totales
+    - func.count() para contar trabajos
+    - Filtrado por estado_escrow = LIBERADO
+    
+    Returns:
+        FinancialMetricsResponse con:
+            - total_facturado: Suma de precio_final de trabajos liberados
+            - comision_total: Suma de comisiones cobradas
+            - trabajos_completados: Cantidad de trabajos liberados
+            
+    Example:
+        >>> GET /api/v1/admin/metrics/financials
+        {
+            "total_facturado": 150000.50,
+            "comision_total": 30000.10,
+            "trabajos_completados": 42
+        }
+    """
+    print("=" * 70)
+    print("📊 CALCULANDO MÉTRICAS FINANCIERAS")
+    print("=" * 70)
+    
+    # Query 1: Total facturado (suma de precios finales de trabajos LIBERADOS)
+    total_facturado = (
+        db.query(func.sum(Trabajo.precio_final))
+        .filter(Trabajo.estado_escrow == EstadoEscrow.LIBERADO)
+        .scalar()
+    ) or 0
+    
+    # Query 2: Comisión total (suma de comisiones cobradas)
+    comision_total = (
+        db.query(func.sum(Trabajo.comision_plataforma))
+        .filter(Trabajo.estado_escrow == EstadoEscrow.LIBERADO)
+        .scalar()
+    ) or 0
+    
+    # Query 3: Trabajos completados (cantidad de trabajos LIBERADOS)
+    trabajos_completados = (
+        db.query(func.count(Trabajo.id))
+        .filter(Trabajo.estado_escrow == EstadoEscrow.LIBERADO)
+        .scalar()
+    ) or 0
+    
+    print(f"💰 Total Facturado: ${total_facturado}")
+    print(f"💵 Comisión Total: ${comision_total}")
+    print(f"✅ Trabajos Completados: {trabajos_completados}")
+    print("=" * 70)
+    
+    # Convertir Decimal a float para el schema
+    return FinancialMetricsResponse(
+        total_facturado=float(total_facturado),
+        comision_total=float(comision_total),
+        trabajos_completados=trabajos_completados
+    )
+
+
+@router.get(
+    "/metrics/users",
+    response_model=UserMetricsResponse,
+    summary="Obtener métricas de crecimiento de usuarios",
+    description="""
+    **Dashboard de Admin:** Muestra las métricas de crecimiento de usuarios.
+    
+    **Métricas calculadas:**
+    - **total_clientes**: Cantidad de usuarios con rol CLIENTE
+    - **total_profesionales**: Cantidad de usuarios con rol PROFESIONAL
+    - **total_pro_pendientes_kyc**: Profesionales con KYC en revisión (EN_REVISION)
+    - **total_pro_aprobados**: Profesionales verificados y aprobados (APROBADO)
+    
+    **Uso:** El admin ve estas métricas para monitorear el crecimiento de la plataforma
+    y el estado del proceso de verificación KYC.
+    """,
+    dependencies=[Depends(get_current_admin_user)]
+)
+def get_user_metrics(
+    db: Session = Depends(get_db)
+) -> UserMetricsResponse:
+    """
+    Calcula y retorna las métricas de usuarios de la plataforma.
+    
+    Returns:
+        UserMetricsResponse con:
+            - total_clientes: Cantidad de usuarios CLIENTE
+            - total_profesionales: Cantidad de usuarios PROFESIONAL
+            - total_pro_pendientes_kyc: Profesionales en revisión
+            - total_pro_aprobados: Profesionales verificados
+    """
+    from app.models.enums import UserRole
+    
+    print("=" * 70)
+    print("👥 CALCULANDO MÉTRICAS DE USUARIOS")
+    print("=" * 70)
+    
+    # Query 1: Total de clientes
+    total_clientes = (
+        db.query(Usuario)
+        .filter(Usuario.rol == UserRole.CLIENTE)
+        .count()
+    )
+    
+    # Query 2: Total de profesionales
+    total_profesionales = (
+        db.query(Usuario)
+        .filter(Usuario.rol == UserRole.PROFESIONAL)
+        .count()
+    )
+    
+    # Query 3: Profesionales con KYC pendiente de revisión
+    total_pro_pendientes_kyc = (
+        db.query(Profesional)
+        .filter(Profesional.estado_verificacion == VerificationStatus.EN_REVISION)
+        .count()
+    )
+    
+    # Query 4: Profesionales aprobados
+    total_pro_aprobados = (
+        db.query(Profesional)
+        .filter(Profesional.estado_verificacion == VerificationStatus.APROBADO)
+        .count()
+    )
+    
+    print(f"👤 Total Clientes: {total_clientes}")
+    print(f"👨‍💼 Total Profesionales: {total_profesionales}")
+    print(f"📋 Profesionales Pendientes KYC: {total_pro_pendientes_kyc}")
+    print(f"✅ Profesionales Aprobados: {total_pro_aprobados}")
+    print("=" * 70)
+    
+    return UserMetricsResponse(
+        total_clientes=total_clientes,
+        total_profesionales=total_profesionales,
+        total_pro_pendientes_kyc=total_pro_pendientes_kyc,
+        total_pro_aprobados=total_pro_aprobados
+    )

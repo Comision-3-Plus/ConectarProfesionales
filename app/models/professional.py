@@ -92,6 +92,14 @@ class Profesional(Base, UUIDMixin, TimestampMixin):
         comment="Nivel de gamificación del profesional"
     )
     
+    puntos_experiencia = Column(
+        Integer,
+        default=0,
+        nullable=False,
+        index=True,
+        comment="Puntos de experiencia acumulados por el profesional"
+    )
+    
     tasa_comision_actual = Column(
         Numeric(5, 2),  # 5 dígitos totales, 2 decimales (ej: 0.20 = 20%)
         default=0.20,

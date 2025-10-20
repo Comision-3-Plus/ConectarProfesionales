@@ -71,12 +71,26 @@ def register(
 
     Usa OAuth2PasswordRequestForm, por lo que se espera `username` y `password` como form fields.
     El token contendrá `sub` (UUID del usuario) y `rol` (CLIENTE/PROFESIONAL/ADMIN).
+    
+    **Seguridad:** Los usuarios baneados (is_active=False) no pueden iniciar sesión.
     """
 )
 def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ) -> Token:
+    # Primero verificar si el usuario existe para dar mensaje específico si está baneado
+    user_check = db.query(Usuario).filter(Usuario.email == form_data.username).first()
+    
+    if user_check and not user_check.is_active:
+        # Usuario existe pero está baneado
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tu cuenta ha sido desactivada. Contacta al administrador para más información.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Autenticar normalmente (ya incluye verificación de is_active)
     user = user_service.authenticate_user(db, email=form_data.username, password=form_data.password)
     if not user:
         raise HTTPException(
