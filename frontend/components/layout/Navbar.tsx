@@ -48,12 +48,9 @@ export function Navbar() {
                 <Briefcase className="h-6 w-6 text-white" />
               </div>
             </div>
-            <div className="flex flex-col">
-              <span className="text-xl font-bold leading-none text-slate-900 dark:text-white group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors">
-                Conectar<span className="text-orange-500 dark:text-orange-400 group-hover:text-orange-600 dark:group-hover:text-orange-500">Pro</span>
-              </span>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-none mt-0.5">Plataforma #1</span>
-            </div>
+            <span className="text-xl font-bold text-slate-900 dark:text-white group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors">
+              Conectar<span className="text-orange-500 dark:text-orange-400 group-hover:text-orange-600 dark:group-hover:text-orange-500">Pro</span>
+            </span>
           </Link>
 
           {/* Desktop Navigation */}

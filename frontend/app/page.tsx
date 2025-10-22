@@ -60,10 +60,15 @@ export default function HomePage() {
               transition={{ duration: 0.6 }}
               className="text-center lg:text-left"
             >
-              <Badge variant="outline" className="mb-6 border-orange-500 text-orange-600">
-                <Sparkles className="mr-1 h-3 w-3" />
-                Plataforma #1 de Profesionales
-              </Badge>
+              {/* Logo ConectarPro */}
+              <div className="mb-8 flex items-center justify-center lg:justify-start gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 shadow-lg">
+                  <Briefcase className="h-6 w-6 text-white" />
+                </div>
+                <span className="text-3xl font-bold bg-gradient-to-r from-orange-500 to-orange-600 dark:from-orange-400 dark:to-orange-500 bg-clip-text text-transparent">
+                  ConectarPro
+                </span>
+              </div>
               
               <h1 className="mb-6 text-4xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl">
                 Encuentra al{' '}
