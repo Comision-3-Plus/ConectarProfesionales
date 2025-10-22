@@ -81,8 +81,15 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Permissions-Policy"] = "geolocation=(self), payment=(self)"
     
     # Remover headers que revelan información del servidor
-    response.headers.pop("Server", None)
-    response.headers.pop("X-Powered-By", None)
+    # MutableHeaders no tiene pop(), usar del en try/except
+    try:
+        del response.headers["Server"]
+    except KeyError:
+        pass
+    try:
+        del response.headers["X-Powered-By"]
+    except KeyError:
+        pass
     
     return response
 

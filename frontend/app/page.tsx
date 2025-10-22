@@ -22,15 +22,14 @@ import {
   Sparkles
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { searchApi } from '@/lib/api';
+import { searchService } from '@/lib/services';
 import { motion } from 'framer-motion';
 
 export default function HomePage() {
-  // Fetch destacados (primeros 6 profesionales con mejor rating)
-  const { data: destacados, isLoading } = useQuery({
-    queryKey: ['professionals', 'destacados'],
-    queryFn: () => searchApi.searchProfessionals({ rating_min: 4 }, 1, 6),
-  });
+  // TODO: Implementar endpoint de destacados en el backend
+  // Por ahora, deshabilitamos la query para no romper la página
+  const destacados = null;
+  const isLoading = false;
 
   return (
     <div className="flex flex-col">

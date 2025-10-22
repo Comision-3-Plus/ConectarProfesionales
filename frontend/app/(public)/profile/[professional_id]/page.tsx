@@ -2,7 +2,7 @@
 
 import { use } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { publicApi } from '@/lib/api';
+import { publicService } from '@/lib/services';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -25,7 +25,7 @@ export default function ProfessionalProfilePage({
 
   const { data: professional, isLoading } = useQuery({
     queryKey: ['professional', professionalId],
-    queryFn: () => publicApi.getProfessional(professionalId),
+    queryFn: () => publicService.getProfessionalProfile(professionalId.toString()),
   });
 
   const handleContactClick = () => {

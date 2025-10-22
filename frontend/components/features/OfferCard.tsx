@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, Clock } from 'lucide-react';
 import type { Oferta } from '@/types';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { clienteApi } from '@/lib/api';
+import { clienteService } from '@/lib/services';
 import { toast } from 'sonner';
 
 interface OfferCardProps {
@@ -18,7 +18,7 @@ export function OfferCard({ offer, isClient = false }: OfferCardProps) {
   const queryClient = useQueryClient();
 
   const acceptMutation = useMutation({
-    mutationFn: () => clienteApi.acceptOffer(offer.id),
+    mutationFn: () => clienteService.acceptOferta(offer.id.toString()),
     onSuccess: (data) => {
       toast.success('Oferta aceptada. Redirigiendo al pago...');
       // Redirect to payment
@@ -32,7 +32,7 @@ export function OfferCard({ offer, isClient = false }: OfferCardProps) {
   });
 
   const rejectMutation = useMutation({
-    mutationFn: () => clienteApi.rejectOffer(offer.id),
+    mutationFn: () => clienteService.rejectOferta(offer.id.toString()),
     onSuccess: () => {
       toast.success('Oferta rechazada');
       queryClient.invalidateQueries({ queryKey: ['offers'] });

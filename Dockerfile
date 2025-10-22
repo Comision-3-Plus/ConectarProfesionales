@@ -24,6 +24,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY ./app /code/app
 COPY ./alembic.ini /code/
 COPY ./migrations /code/migrations
+COPY ./create_admin.sh /code/
+
+# Dar permisos de ejecución al script
+RUN chmod +x /code/create_admin.sh
 
 # Exponer el puerto 8000
 EXPOSE 8000

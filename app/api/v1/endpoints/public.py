@@ -11,11 +11,28 @@ from app.models.portfolio import PortfolioItem, PortfolioImagen
 from app.models.professional import Profesional
 from app.models.user import Usuario
 from app.models.resena import Resena
+from app.models.oficio import Oficio
 from app.models.enums import VerificationStatus
 from app.schemas.portfolio import PortfolioItemRead
 from app.schemas.professional import PublicProfileResponse
+from app.schemas.oficio import OficioRead
 
 router = APIRouter()
+
+
+@router.get(
+    "/oficios",
+    response_model=List[OficioRead],
+    summary="Listar todos los oficios (público)"
+)
+def list_oficios_public(db: Session = Depends(get_db)) -> list[OficioRead]:
+    """
+    Lista todos los oficios disponibles.
+    Endpoint público para que cualquier usuario pueda ver los oficios
+    al buscar profesionales o explorar el marketplace.
+    """
+    oficios = db.query(Oficio).order_by(Oficio.nombre).all()
+    return [OficioRead.model_validate(o) for o in oficios]
 
 
 @router.get(

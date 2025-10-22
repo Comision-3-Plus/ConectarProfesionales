@@ -29,75 +29,46 @@ const nextConfig: NextConfig = {
   // Comprimir respuestas
   compress: true,
 
-  // Headers de seguridad COMPLETOS
+  // Headers de seguridad - SIMPLIFICADOS PARA DESARROLLO
   async headers() {
+    // En desarrollo, usar CSP más permisivo
+    const isDev = process.env.NODE_ENV !== 'production';
+    
     return [
       {
         source: '/:path*',
         headers: [
-          // Seguridad HTTPS
+          // Content Security Policy - Permisivo en desarrollo
           {
-            key: 'Strict-Transport-Security',
-            value: 'max-age=63072000; includeSubDomains; preload',
+            key: 'Content-Security-Policy',
+            value: isDev 
+              ? [
+                  "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:",
+                  "script-src * 'unsafe-inline' 'unsafe-eval'",
+                  "style-src * 'unsafe-inline'",
+                  "font-src * data:",
+                  "img-src * data: blob:",
+                  "connect-src *",
+                ].join('; ')
+              : [
+                  "default-src 'self'",
+                  "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+                  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+                  "font-src 'self' https://fonts.gstatic.com data:",
+                  "img-src 'self' data: https: blob:",
+                  "connect-src 'self' http://localhost:8004",
+                  "frame-ancestors 'none'",
+                ].join('; '),
           },
           // Prevenir clickjacking
           {
             key: 'X-Frame-Options',
-            value: 'DENY',
+            value: 'SAMEORIGIN',
           },
           // Prevenir MIME sniffing
           {
             key: 'X-Content-Type-Options',
             value: 'nosniff',
-          },
-          // XSS Protection
-          {
-            key: 'X-XSS-Protection',
-            value: '1; mode=block',
-          },
-          // Referrer Policy
-          {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin',
-          },
-          // DNS Prefetch
-          {
-            key: 'X-DNS-Prefetch-Control',
-            value: 'on',
-          },
-          // Content Security Policy (CSP) - CRÍTICO
-          {
-            key: 'Content-Security-Policy',
-            value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com",
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-              "font-src 'self' https://fonts.gstatic.com",
-              "img-src 'self' data: https: blob:",
-              "connect-src 'self' https://www.google-analytics.com http://localhost:8000 http://26.224.83.238:8000 https://*.vercel-insights.com",
-              "frame-ancestors 'none'",
-              "base-uri 'self'",
-              "form-action 'self'",
-              "upgrade-insecure-requests",
-            ].join('; '),
-          },
-          // Permissions Policy (antes Feature-Policy)
-          {
-            key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=(self), payment=(self)',
-          },
-          // Cross-Origin Policies
-          {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'credentialless',
-          },
-          {
-            key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin',
-          },
-          {
-            key: 'Cross-Origin-Resource-Policy',
-            value: 'same-origin',
           },
         ],
       },

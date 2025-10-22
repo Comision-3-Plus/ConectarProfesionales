@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { clienteApi } from '@/lib/api';
+import { clienteService } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,12 +15,12 @@ export default function ClienteDashboardPage() {
 
   const { data: trabajos } = useQuery({
     queryKey: ['client-works'],
-    queryFn: clienteApi.getMyProjects,
+    queryFn: clienteService.listTrabajos,
   });
 
   const handleFinalizeWork = async (workId: number) => {
     try {
-      await clienteApi.finalizeWork(workId);
+      await clienteService.finalizarTrabajo(workId.toString());
       setSelectedWorkForReview(workId);
     } catch (error) {
       console.error('Error finalizando trabajo:', error);

@@ -16,7 +16,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Filter, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { searchApi, publicApi } from '@/lib/api';
+import { searchService, publicService } from '@/lib/services';
 import type { SearchFilters } from '@/types';
 
 export default function BrowsePage() {
@@ -24,16 +24,17 @@ export default function BrowsePage() {
   const [page, setPage] = useState(1);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
-  // Fetch oficios for filter
+  // Fetch oficios (público, sin auth)
   const { data: oficios } = useQuery({
-    queryKey: ['oficios'],
-    queryFn: publicApi.getOficios,
+    queryKey: ['oficios', 'public'],
+    queryFn: () => publicService.getOficios(),
   });
 
-  // Fetch professionals with filters
+  // Fetch professionals with filters (sin oficios por ahora)
   const { data, isLoading } = useQuery({
     queryKey: ['professionals', 'search', filters, page],
-    queryFn: () => searchApi.searchProfessionals(filters, page, 12),
+    queryFn: () => searchService.searchProfessionals(filters),
+    enabled: false, // Deshabilitar búsqueda automática hasta tener ubicación
   });
 
   const handleFilterChange = (key: keyof SearchFilters, value: string | number | undefined) => {

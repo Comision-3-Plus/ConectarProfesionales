@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { clienteApi } from '@/lib/api';
+import { clienteService } from '@/lib/services';
 import { toast } from 'sonner';
 
 interface ReviewModalProps {
@@ -22,8 +22,8 @@ export function ReviewModal({ workId, open, onOpenChange }: ReviewModalProps) {
   const queryClient = useQueryClient();
 
   const reviewMutation = useMutation({
-    mutationFn: (data: { calificacion: number; comentario?: string }) =>
-      clienteApi.createReview(workId, data),
+    mutationFn: (data: { rating: number; texto_resena?: string }) =>
+      clienteService.crearResena(workId.toString(), data),
     onSuccess: () => {
       toast.success('Reseña enviada correctamente');
       queryClient.invalidateQueries({ queryKey: ['works'] });
@@ -39,8 +39,8 @@ export function ReviewModal({ workId, open, onOpenChange }: ReviewModalProps) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     reviewMutation.mutate({
-      calificacion: rating,
-      comentario: comment || undefined,
+      rating: rating,
+      texto_resena: comment || undefined,
     });
   };
 

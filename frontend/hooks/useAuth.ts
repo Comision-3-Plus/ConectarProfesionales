@@ -1,5 +1,5 @@
 import { useAuthStore } from '@/store/authStore';
-import { authApi } from '@/lib/api';
+import { userService } from '@/lib/services';
 import { useQuery } from '@tanstack/react-query';
 
 export function useAuth() {
@@ -8,7 +8,7 @@ export function useAuth() {
   // Fetch user data if authenticated but user is null
   const { data: userData } = useQuery({
     queryKey: ['currentUser'],
-    queryFn: authApi.getCurrentUser,
+    queryFn: userService.getMe,
     enabled: isAuthenticated && !user && !!token,
     retry: false,
   });

@@ -1,18 +1,3 @@
-import type { Metadata } from "next";
-import { generateSEO } from "@/lib/seo";
-
-export const metadata: Metadata = generateSEO({
-  title: "Cómo Funciona - Guía Completa",
-  description: "Aprende cómo conectar con profesionales verificados en 4 simples pasos. Busca, contacta, contrata y paga de forma segura. Guía paso a paso.",
-  keywords: [
-    "cómo contratar freelancers",
-    "cómo funciona marketplace",
-    "guía contratar profesionales",
-    "proceso de contratación",
-  ],
-  url: "/como-funciona",
-});
-
 "use client";
 
 import { motion } from "framer-motion";

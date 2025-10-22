@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { professionalApi } from '@/lib/api';
+import { professionalService } from '@/lib/services';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,21 +10,14 @@ import { DollarSign, Briefcase, Star, TrendingUp } from 'lucide-react';
 export default function ProfessionalDashboardPage() {
   const { data: profile } = useQuery({
     queryKey: ['professional-profile'],
-    queryFn: professionalApi.getProfile,
-  });
-
-  const { data: trabajos } = useQuery({
-    queryKey: ['professional-works'],
-    queryFn: professionalApi.getMyWorks,
+    queryFn: professionalService.getMe,
   });
 
   const { data: ofertas } = useQuery({
     queryKey: ['professional-offers'],
-    queryFn: professionalApi.getMyOffers,
+    queryFn: professionalService.listOfertas,
   });
 
-  const trabajosActivos = trabajos?.filter((t) => t.estado === 'en_progreso') || [];
-  const trabajosFinalizados = trabajos?.filter((t) => t.estado === 'finalizado') || [];
   const ofertasPendientes = ofertas?.filter((o) => o.estado === 'pendiente') || [];
 
   const estadoColors: Record<string, string> = {
@@ -75,7 +68,7 @@ export default function ProfessionalDashboardPage() {
             <Briefcase className="h-4 w-4 text-slate-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{trabajosActivos.length}</div>
+            <div className="text-2xl font-bold text-slate-900">0</div>
           </CardContent>
         </Card>
 
@@ -87,7 +80,7 @@ export default function ProfessionalDashboardPage() {
             <TrendingUp className="h-4 w-4 text-slate-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-slate-900">{trabajosFinalizados.length}</div>
+            <div className="text-2xl font-bold text-slate-900">0</div>
           </CardContent>
         </Card>
 
@@ -110,7 +103,7 @@ export default function ProfessionalDashboardPage() {
       <Tabs defaultValue="offers" className="space-y-6">
         <TabsList>
           <TabsTrigger value="offers">Ofertas ({ofertasPendientes.length})</TabsTrigger>
-          <TabsTrigger value="works">Trabajos ({trabajosActivos.length})</TabsTrigger>
+          <TabsTrigger value="works">Trabajos (0)</TabsTrigger>
         </TabsList>
 
         <TabsContent value="offers" className="space-y-4">
@@ -145,29 +138,11 @@ export default function ProfessionalDashboardPage() {
         </TabsContent>
 
         <TabsContent value="works" className="space-y-4">
-          {trabajosActivos.length > 0 ? (
-            trabajosActivos.map((trabajo) => (
-              <Card key={trabajo.id}>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="font-semibold text-slate-900">Trabajo #{trabajo.id}</h3>
-                      <p className="text-sm text-slate-600">Estado: {trabajo.estado}</p>
-                    </div>
-                    <Badge className="bg-blue-100 text-blue-800" variant="secondary">
-                      En Progreso
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          ) : (
-            <Card>
-              <CardContent className="p-12 text-center">
-                <p className="text-slate-500">No tienes trabajos activos</p>
-              </CardContent>
-            </Card>
-          )}
+          <Card>
+            <CardContent className="p-12 text-center">
+              <p className="text-slate-500">No tienes trabajos activos</p>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
     </div>

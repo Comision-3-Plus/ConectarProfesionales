@@ -8,7 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { authApi } from '@/lib/api';
+import { authService } from '@/lib/services';
+import { UserRole } from '@/types';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -20,7 +21,6 @@ const registerSchema = z.object({
   confirmPassword: z.string(),
   nombre: z.string().min(2, 'El nombre es requerido'),
   apellido: z.string().min(2, 'El apellido es requerido'),
-  telefono: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Las contraseñas no coinciden',
   path: ['confirmPassword'],
@@ -44,19 +44,20 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true);
     try {
-      await authApi.register({
+      await authService.register({
         email: data.email,
         password: data.password,
         nombre: data.nombre,
         apellido: data.apellido,
-        telefono: data.telefono,
-        es_profesional: userType === 'profesional',
+        rol: userType === 'profesional' ? UserRole.PROFESIONAL : UserRole.CLIENTE,
       });
       
       toast.success('¡Cuenta creada exitosamente! Por favor inicia sesión.');
       router.push('/login');
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Error al registrarse');
+    } catch (error: any) {
+      console.error('Error al registrar:', error);
+      const errorMessage = error?.response?.data?.detail || error?.message || 'Error al registrarse';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }

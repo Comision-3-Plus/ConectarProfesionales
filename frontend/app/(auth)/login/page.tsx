@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
-import { authApi } from '@/lib/api';
+import { authService, userService } from '@/lib/services';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -37,14 +37,14 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     try {
-      const tokens = await authApi.login(data.email, data.password);
-      const user = await authApi.getCurrentUser();
+      const tokens = await authService.login(data.email, data.password);
+      const user = await userService.getMe();
       
       setAuth(user, tokens.access_token);
       toast.success('¡Bienvenido!');
       
       // Redirect based on user type
-      if (user.es_profesional) {
+      if (user.rol === 'PROFESIONAL') {
         router.push('/dashboard/profesional');
       } else {
         router.push('/dashboard/cliente');
