@@ -65,12 +65,20 @@ export default function ProfessionalProfilePage({
     professional;
 
   const nivelLabels: Record<string, string> = {
+    BRONCE: 'Bronce',
+    PLATA: 'Plata',
+    ORO: 'Oro',
+    DIAMANTE: 'Diamante',
     junior: 'Junior',
     intermedio: 'Intermedio',
     senior: 'Senior',
   };
 
   const nivelColors: Record<string, string> = {
+    BRONCE: 'bg-green-100 text-green-800',
+    PLATA: 'bg-blue-100 text-blue-800',
+    ORO: 'bg-purple-100 text-purple-800',
+    DIAMANTE: 'bg-orange-100 text-orange-800',
     junior: 'bg-green-100 text-green-800',
     intermedio: 'bg-blue-100 text-blue-800',
     senior: 'bg-purple-100 text-purple-800',
@@ -85,10 +93,10 @@ export default function ProfessionalProfilePage({
             <div className="flex flex-col items-start gap-6 sm:flex-row">
               {/* Avatar */}
               <Avatar className="h-24 w-24 sm:h-32 sm:w-32">
-                <AvatarImage src={user.avatar_url} alt={user.nombre} />
+                <AvatarImage src={user?.avatar_url} alt={user?.nombre || 'Usuario'} />
                 <AvatarFallback className="bg-orange-500 text-2xl text-white">
-                  {user.nombre[0]}
-                  {user.apellido[0]}
+                  {user?.nombre?.[0] || 'U'}
+                  {user?.apellido?.[0] || 'P'}
                 </AvatarFallback>
               </Avatar>
 
@@ -96,12 +104,14 @@ export default function ProfessionalProfilePage({
               <div className="flex-1 space-y-4">
                 <div>
                   <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-                    {user.nombre} {user.apellido}
+                    {user?.nombre || ''} {user?.apellido || ''}
                   </h1>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <Badge className={nivelColors[nivel_experiencia]} variant="secondary">
-                      {nivelLabels[nivel_experiencia]}
-                    </Badge>
+                    {nivel_experiencia && (
+                      <Badge className={nivelColors[nivel_experiencia]} variant="secondary">
+                        {nivelLabels[nivel_experiencia]}
+                      </Badge>
+                    )}
                     {oficios.slice(0, 3).map((oficio) => (
                       <Badge key={oficio.id} variant="outline">
                         {oficio.nombre}

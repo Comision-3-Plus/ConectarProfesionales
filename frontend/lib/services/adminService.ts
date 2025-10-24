@@ -137,6 +137,23 @@ export const adminService = {
   // ==========================================
 
   /**
+   * GET /api/v1/admin/users?page=1&limit=10
+   * Listar todos los usuarios de forma paginada
+   */
+  listAllUsers: async (page: number = 1, limit: number = 10): Promise<{
+    users: UserSearchResult[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> => {
+    const response = await api.get('/admin/users', {
+      params: { page, limit },
+    });
+    return response.data;
+  },
+
+  /**
    * GET /api/v1/admin/users/search?email=...
    * Buscar usuarios por email
    */

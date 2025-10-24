@@ -69,6 +69,10 @@ export interface UserRead {
   avatar_url?: string;
   infracciones_chat: number;
   is_chat_banned: boolean;
+  // Helper properties
+  es_cliente?: boolean;
+  es_profesional?: boolean;
+  es_admin?: boolean;
 }
 
 // ============================================================================
@@ -116,6 +120,8 @@ export interface ProfessionalProfileRead {
   nombre: string;
   apellido: string;
   email: string;
+  rating_promedio?: number;
+  total_resenas?: number;
 }
 
 export interface ProfessionalLocationUpdate {
@@ -140,7 +146,12 @@ export interface PublicProfileResponse {
   total_resenas: number;
   oficios: OficioRead[];
   portfolio: PortfolioItemRead[];
+  portfolio_items?: PortfolioItemRead[]; // Alias
   resenas: ResenaPublicRead[];
+  // Legacy fields
+  user?: { nombre: string; apellido: string; avatar_url?: string };
+  nivel_experiencia?: string;
+  biografia?: string;
 }
 
 // ============================================================================
@@ -207,6 +218,7 @@ export interface PortfolioItemRead {
   descripcion: string;
   fecha_creacion: string;
   imagenes: PortfolioImageRead[];
+  fecha_proyecto?: string; // Legacy field
 }
 
 // ============================================================================
@@ -230,6 +242,8 @@ export interface OfertaRead {
   estado: string; // EstadoOferta enum as string
   fecha_creacion: string;
   fecha_actualizacion: string;
+  precio?: number; // Legacy field
+  expires_at?: string; // Legacy field
 }
 
 export interface OfertaAcceptResponse {
@@ -258,6 +272,8 @@ export interface TrabajoRead {
   monto_liberado?: number;
   fecha_creacion: string;
   fecha_actualizacion: string;
+  // Legacy field
+  estado?: string;
 }
 
 export interface TrabajoFinalizarResponse {
@@ -354,6 +370,7 @@ export interface UserSearchResult {
   rol: UserRole;
   is_active: boolean;
   fecha_creacion: string;
+  avatar_url?: string | null;
 }
 
 export interface UserBanResponse {
@@ -412,4 +429,25 @@ export interface PaginatedResponse<T> {
   page: number;
   size: number;
   pages: number;
+}
+
+// Type aliases for commonly used types
+export type User = UserRead;
+export type Professional = SearchResult;
+export type Oferta = OfertaRead;
+export type PortfolioItem = PortfolioItemRead;
+
+// Search filters interface
+export interface SearchFilters {
+  oficio?: string;
+  oficio_id?: number;
+  ubicacion_lat?: number;
+  ubicacion_lon?: number;
+  radio_km?: number;
+  incluir_fuera_de_radio?: boolean;
+  solo_disponibles_ahora?: boolean;
+  nivel?: string;
+  tarifa_min?: number;
+  tarifa_max?: number;
+  rating_min?: number;
 }

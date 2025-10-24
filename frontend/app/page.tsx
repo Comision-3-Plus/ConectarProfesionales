@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { ProfessionalCard } from '@/components/features/ProfessionalCard';
 import { 
   Search, 
@@ -11,24 +10,16 @@ import {
   ArrowRight, 
   Shield, 
   Star, 
-  Users, 
-  TrendingUp,
-  CheckCircle2,
   Award,
   Clock,
-  MessageSquare,
-  Zap,
-  Target,
-  Sparkles
 } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { searchService } from '@/lib/services';
 import { motion } from 'framer-motion';
+import type { SearchResult } from '@/types';
 
 export default function HomePage() {
   // TODO: Implementar endpoint de destacados en el backend
   // Por ahora, deshabilitamos la query para no romper la página
-  const destacados = null;
+  const destacados: SearchResult[] = [];
   const isLoading = false;
 
   return (
@@ -397,9 +388,9 @@ export default function HomePage() {
                 />
               ))}
             </div>
-          ) : destacados && destacados.items.length > 0 ? (
+          ) : destacados && destacados.length > 0 ? (
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {destacados.items.map((professional) => (
+              {destacados.map((professional: SearchResult) => (
                 <ProfessionalCard key={professional.id} professional={professional} />
               ))}
             </div>

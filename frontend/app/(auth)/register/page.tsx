@@ -21,6 +21,7 @@ const registerSchema = z.object({
   confirmPassword: z.string(),
   nombre: z.string().min(2, 'El nombre es requerido'),
   apellido: z.string().min(2, 'El apellido es requerido'),
+  telefono: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Las contraseñas no coinciden',
   path: ['confirmPassword'],
@@ -54,9 +55,11 @@ export default function RegisterPage() {
       
       toast.success('¡Cuenta creada exitosamente! Por favor inicia sesión.');
       router.push('/login');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error al registrar:', error);
-      const errorMessage = error?.response?.data?.detail || error?.message || 'Error al registrarse';
+      const errorMessage = (error as { response?: { data?: { detail?: string } }; message?: string })?.response?.data?.detail 
+        || (error as { message?: string })?.message 
+        || 'Error al registrarse';
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);

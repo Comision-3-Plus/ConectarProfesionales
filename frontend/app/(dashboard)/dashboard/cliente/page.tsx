@@ -11,16 +11,16 @@ import { ReviewModal } from '@/components/features/ReviewModal';
 import { Briefcase, Clock, CheckCircle, Star } from 'lucide-react';
 
 export default function ClienteDashboardPage() {
-  const [selectedWorkForReview, setSelectedWorkForReview] = useState<number | null>(null);
+  const [selectedWorkForReview, setSelectedWorkForReview] = useState<string | null>(null);
 
   const { data: trabajos } = useQuery({
     queryKey: ['client-works'],
     queryFn: clienteService.listTrabajos,
   });
 
-  const handleFinalizeWork = async (workId: number) => {
+  const handleFinalizeWork = async (workId: string) => {
     try {
-      await clienteService.finalizarTrabajo(workId.toString());
+      await clienteService.finalizarTrabajo(workId);
       setSelectedWorkForReview(workId);
     } catch (error) {
       console.error('Error finalizando trabajo:', error);
@@ -32,6 +32,10 @@ export default function ClienteDashboardPage() {
     en_progreso: 'bg-blue-100 text-blue-800',
     finalizado: 'bg-green-100 text-green-800',
     cancelado: 'bg-red-100 text-red-800',
+    PENDIENTE_PAGO: 'bg-yellow-100 text-yellow-800',
+    PAGADO_EN_ESCROW: 'bg-blue-100 text-blue-800',
+    LIBERADO: 'bg-green-100 text-green-800',
+    CANCELADO_REEMBOLSADO: 'bg-red-100 text-red-800',
   };
 
   const estadoLabels: Record<string, string> = {
@@ -39,6 +43,10 @@ export default function ClienteDashboardPage() {
     en_progreso: 'En Progreso',
     finalizado: 'Finalizado',
     cancelado: 'Cancelado',
+    PENDIENTE_PAGO: 'Pendiente de Pago',
+    PAGADO_EN_ESCROW: 'En Progreso',
+    LIBERADO: 'Finalizado',
+    CANCELADO_REEMBOLSADO: 'Cancelado',
   };
 
   const estadoIcons: Record<string, React.ReactNode> = {
@@ -46,11 +54,15 @@ export default function ClienteDashboardPage() {
     en_progreso: <Briefcase className="h-4 w-4" />,
     finalizado: <CheckCircle className="h-4 w-4" />,
     cancelado: <CheckCircle className="h-4 w-4" />,
+    PENDIENTE_PAGO: <Clock className="h-4 w-4" />,
+    PAGADO_EN_ESCROW: <Briefcase className="h-4 w-4" />,
+    LIBERADO: <CheckCircle className="h-4 w-4" />,
+    CANCELADO_REEMBOLSADO: <CheckCircle className="h-4 w-4" />,
   };
 
-  const trabajosPendientes = trabajos?.filter((t) => t.estado === 'pendiente') || [];
-  const trabajosActivos = trabajos?.filter((t) => t.estado === 'en_progreso') || [];
-  const trabajosFinalizados = trabajos?.filter((t) => t.estado === 'finalizado') || [];
+  const trabajosPendientes = trabajos?.filter((t) => t.estado === 'pendiente' || t.estado_escrow === 'PENDIENTE_PAGO') || [];
+  const trabajosActivos = trabajos?.filter((t) => t.estado === 'en_progreso' || t.estado_escrow === 'PAGADO_EN_ESCROW') || [];
+  const trabajosFinalizados = trabajos?.filter((t) => t.estado === 'finalizado' || t.estado_escrow === 'LIBERADO') || [];
 
   return (
     <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8">
@@ -108,29 +120,34 @@ export default function ClienteDashboardPage() {
 
         <TabsContent value="active" className="space-y-4">
           {trabajosActivos.length > 0 ? (
-            trabajosActivos.map((trabajo) => (
-              <Card key={trabajo.id}>
-                <CardContent className="flex items-center justify-between p-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100">
-                      {estadoIcons[trabajo.estado]}
+            trabajosActivos.map((trabajo) => {
+              const estado = trabajo.estado || trabajo.estado_escrow;
+              return (
+                <Card key={trabajo.id}>
+                  <CardContent className="flex items-center justify-between p-6">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100">
+                        {estado && estadoIcons[estado]}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-slate-900">Trabajo #{trabajo.id}</h3>
+                        {estado && (
+                          <Badge className={estadoColors[estado]} variant="secondary">
+                            {estadoLabels[estado]}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-slate-900">Trabajo #{trabajo.id}</h3>
-                      <Badge className={estadoColors[trabajo.estado]} variant="secondary">
-                        {estadoLabels[trabajo.estado]}
-                      </Badge>
-                    </div>
-                  </div>
-                  <Button
-                    onClick={() => handleFinalizeWork(trabajo.id)}
-                    className="bg-orange-500 hover:bg-orange-600"
-                  >
-                    Finalizar Trabajo
-                  </Button>
-                </CardContent>
-              </Card>
-            ))
+                    <Button
+                      onClick={() => handleFinalizeWork(trabajo.id)}
+                      className="bg-orange-500 hover:bg-orange-600"
+                    >
+                      Finalizar Trabajo
+                    </Button>
+                  </CardContent>
+                </Card>
+              );
+            })
           ) : (
             <Card>
               <CardContent className="p-12 text-center">
@@ -142,23 +159,28 @@ export default function ClienteDashboardPage() {
 
         <TabsContent value="pending" className="space-y-4">
           {trabajosPendientes.length > 0 ? (
-            trabajosPendientes.map((trabajo) => (
-              <Card key={trabajo.id}>
-                <CardContent className="flex items-center justify-between p-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-yellow-100">
-                      {estadoIcons[trabajo.estado]}
+            trabajosPendientes.map((trabajo) => {
+              const estado = trabajo.estado || trabajo.estado_escrow;
+              return (
+                <Card key={trabajo.id}>
+                  <CardContent className="flex items-center justify-between p-6">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-yellow-100">
+                        {estado && estadoIcons[estado]}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-slate-900">Trabajo #{trabajo.id}</h3>
+                        {estado && (
+                          <Badge className={estadoColors[estado]} variant="secondary">
+                            {estadoLabels[estado]}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-slate-900">Trabajo #{trabajo.id}</h3>
-                      <Badge className={estadoColors[trabajo.estado]} variant="secondary">
-                        {estadoLabels[trabajo.estado]}
-                      </Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
+                  </CardContent>
+                </Card>
+              );
+            })
           ) : (
             <Card>
               <CardContent className="p-12 text-center">
@@ -170,24 +192,29 @@ export default function ClienteDashboardPage() {
 
         <TabsContent value="completed" className="space-y-4">
           {trabajosFinalizados.length > 0 ? (
-            trabajosFinalizados.map((trabajo) => (
-              <Card key={trabajo.id}>
-                <CardContent className="flex items-center justify-between p-6">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100">
-                      {estadoIcons[trabajo.estado]}
+            trabajosFinalizados.map((trabajo) => {
+              const estado = trabajo.estado || trabajo.estado_escrow;
+              return (
+                <Card key={trabajo.id}>
+                  <CardContent className="flex items-center justify-between p-6">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100">
+                        {estado && estadoIcons[estado]}
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-slate-900">Trabajo #{trabajo.id}</h3>
+                        {estado && (
+                          <Badge className={estadoColors[estado]} variant="secondary">
+                            {estadoLabels[estado]}
+                          </Badge>
+                        )}
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-semibold text-slate-900">Trabajo #{trabajo.id}</h3>
-                      <Badge className={estadoColors[trabajo.estado]} variant="secondary">
-                        {estadoLabels[trabajo.estado]}
-                      </Badge>
-                    </div>
-                  </div>
-                  <Star className="h-6 w-6 fill-orange-500 text-orange-500" />
-                </CardContent>
-              </Card>
-            ))
+                    <Star className="h-6 w-6 fill-orange-500 text-orange-500" />
+                  </CardContent>
+                </Card>
+              );
+            })
           ) : (
             <Card>
               <CardContent className="p-12 text-center">

@@ -8,7 +8,6 @@ import {
   MapPin, 
   Phone,
   Briefcase,
-  Heart,
   Shield,
   Sparkles,
   TrendingUp

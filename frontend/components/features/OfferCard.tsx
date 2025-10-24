@@ -47,6 +47,9 @@ export function OfferCard({ offer, isClient = false }: OfferCardProps) {
     aceptada: 'bg-green-100 text-green-800',
     rechazada: 'bg-red-100 text-red-800',
     expirada: 'bg-gray-100 text-gray-800',
+    OFERTADO: 'bg-yellow-100 text-yellow-800',
+    ACEPTADO: 'bg-green-100 text-green-800',
+    RECHAZADO: 'bg-red-100 text-red-800',
   };
 
   const estadoLabels: Record<string, string> = {
@@ -54,10 +57,15 @@ export function OfferCard({ offer, isClient = false }: OfferCardProps) {
     aceptada: 'Aceptada',
     rechazada: 'Rechazada',
     expirada: 'Expirada',
+    OFERTADO: 'Pendiente',
+    ACEPTADO: 'Aceptada',
+    RECHAZADO: 'Rechazada',
   };
 
-  const isExpired = new Date(offer.expires_at) < new Date();
-  const isPending = offer.estado === 'pendiente' && !isExpired;
+  const expiresAt = offer.expires_at || offer.fecha_actualizacion;
+  const precio = offer.precio || offer.precio_final;
+  const isExpired = expiresAt ? new Date(expiresAt) < new Date() : false;
+  const isPending = (offer.estado === 'pendiente' || offer.estado === 'OFERTADO') && !isExpired;
 
   return (
     <Card className="border-2 border-orange-200 bg-orange-50/50">
@@ -80,18 +88,20 @@ export function OfferCard({ offer, isClient = false }: OfferCardProps) {
 
         <div className="flex items-baseline space-x-2">
           <span className="text-sm text-slate-600">Precio:</span>
-          <span className="text-2xl font-bold text-orange-500">${offer.precio.toFixed(2)}</span>
+          <span className="text-2xl font-bold text-orange-500">${precio.toFixed(2)}</span>
         </div>
 
-        <div className="text-xs text-slate-500">
-          Expira:{' '}
-          {new Date(offer.expires_at).toLocaleDateString('es-ES', {
-            day: 'numeric',
-            month: 'long',
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </div>
+        {expiresAt && (
+          <div className="text-xs text-slate-500">
+            Expira:{' '}
+            {new Date(expiresAt).toLocaleDateString('es-ES', {
+              day: 'numeric',
+              month: 'long',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </div>
+        )}
       </CardContent>
 
       {isClient && isPending && (

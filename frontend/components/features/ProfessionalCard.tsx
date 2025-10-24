@@ -5,27 +5,29 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Star } from 'lucide-react';
-import type { Professional } from '@/types';
+import type { SearchResult } from '@/types';
 import { motion } from 'framer-motion';
 
 interface ProfessionalCardProps {
-  professional: Professional;
+  professional: SearchResult;
 }
 
 export function ProfessionalCard({ professional }: ProfessionalCardProps) {
-  const { user, nivel_experiencia, tarifa_por_hora, rating_promedio, total_resenas, oficios } =
+  const { nombre, apellido, oficio, tarifa_por_hora, calificacion_promedio, cantidad_resenas, avatar_url, nivel_profesional } =
     professional;
 
   const nivelLabels: Record<string, string> = {
-    junior: 'Junior',
-    intermedio: 'Intermedio',
-    senior: 'Senior',
+    BRONCE: 'Bronce',
+    PLATA: 'Plata',
+    ORO: 'Oro',
+    DIAMANTE: 'Diamante',
   };
 
   const nivelColors: Record<string, string> = {
-    junior: 'bg-green-100 text-green-800',
-    intermedio: 'bg-blue-100 text-blue-800',
-    senior: 'bg-purple-100 text-purple-800',
+    BRONCE: 'bg-green-100 text-green-800',
+    PLATA: 'bg-blue-100 text-blue-800',
+    ORO: 'bg-purple-100 text-purple-800',
+    DIAMANTE: 'bg-orange-100 text-orange-800',
   };
 
   return (
@@ -37,52 +39,33 @@ export function ProfessionalCard({ professional }: ProfessionalCardProps) {
       <Link href={`/profile/${professional.id}`}>
         <Card className="h-full cursor-pointer border border-slate-200 shadow-sm transition-shadow hover:shadow-md">
           <CardContent className="p-6">
-            {/* Avatar and Name */}
             <div className="flex items-start space-x-4">
               <Avatar className="h-16 w-16">
-                <AvatarImage src={user.avatar_url} alt={user.nombre} />
+                <AvatarImage src={avatar_url} alt={nombre} />
                 <AvatarFallback className="bg-orange-500 text-lg text-white">
-                  {user.nombre[0]}
-                  {user.apellido[0]}
+                  {nombre[0]}{apellido[0]}
                 </AvatarFallback>
               </Avatar>
-
               <div className="flex-1 space-y-2">
                 <h3 className="text-lg font-semibold text-slate-900">
-                  {user.nombre} {user.apellido}
+                  {nombre} {apellido}
                 </h3>
-
-                {/* Rating */}
                 <div className="flex items-center space-x-1">
                   <Star className="h-4 w-4 fill-orange-500 text-orange-500" />
                   <span className="text-sm font-medium text-slate-900">
-                    {rating_promedio.toFixed(1)}
+                    {calificacion_promedio.toFixed(1)}
                   </span>
-                  <span className="text-sm text-slate-500">({total_resenas})</span>
+                  <span className="text-sm text-slate-500">({cantidad_resenas})</span>
                 </div>
-
-                {/* Nivel */}
-                <Badge className={nivelColors[nivel_experiencia]} variant="secondary">
-                  {nivelLabels[nivel_experiencia]}
+                <Badge className={nivelColors[nivel_profesional]} variant="secondary">
+                  {nivelLabels[nivel_profesional]}
                 </Badge>
               </div>
             </div>
-
-            {/* Oficios */}
             <div className="mt-4 flex flex-wrap gap-2">
-              {oficios.slice(0, 3).map((oficio) => (
-                <Badge key={oficio.id} variant="outline" className="text-xs">
-                  {oficio.nombre}
-                </Badge>
-              ))}
-              {oficios.length > 3 && (
-                <Badge variant="outline" className="text-xs">
-                  +{oficios.length - 3}
-                </Badge>
-              )}
+              <Badge variant="outline" className="text-xs">{oficio}</Badge>
             </div>
           </CardContent>
-
           <CardFooter className="border-t border-slate-100 bg-slate-50 px-6 py-4">
             {tarifa_por_hora ? (
               <div className="flex w-full items-center justify-between">

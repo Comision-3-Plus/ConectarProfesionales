@@ -23,11 +23,11 @@ import {
   HelpCircle,
   Settings,
   User,
-  Star,
   ChevronDown,
   Sparkles,
   Sun,
-  Moon
+  Moon,
+  Shield
 } from 'lucide-react';
 
 export function Navbar() {
@@ -136,16 +136,38 @@ export function Navbar() {
                             {user?.nombre} {user?.apellido}
                           </p>
                           <p className="text-xs leading-none text-slate-500">{user?.email}</p>
-                          {user?.es_profesional && (
-                            <Badge variant="outline" className="mt-2 border-orange-500 text-orange-600 text-xs">
-                              <Sparkles className="mr-1 h-3 w-3" />
-                              Verificado
-                            </Badge>
-                          )}
+                          <div className="flex gap-2 mt-2">
+                            {user?.es_admin && (
+                              <Badge variant="destructive" className="text-xs">
+                                <Shield className="mr-1 h-3 w-3" />
+                                ADMIN
+                              </Badge>
+                            )}
+                            {user?.es_profesional && (
+                              <Badge variant="outline" className="border-orange-500 text-orange-600 text-xs">
+                                <Sparkles className="mr-1 h-3 w-3" />
+                                Verificado
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
+                    
+                    {user?.es_admin && (
+                      <DropdownMenuItem asChild className="cursor-pointer py-2.5 rounded-md">
+                        <Link href="/dashboard/admin" className="flex items-center">
+                          <div className="mr-3 flex h-8 w-8 items-center justify-center rounded-lg bg-red-100">
+                            <Shield className="h-4 w-4 text-red-600" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">Panel de Administración</div>
+                            <div className="text-xs text-slate-500">Gestión completa</div>
+                          </div>
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
                     
                     {user?.es_cliente && (
                       <DropdownMenuItem asChild className="cursor-pointer py-2.5 rounded-md">
@@ -177,7 +199,7 @@ export function Navbar() {
                     <DropdownMenuSeparator className="my-2" />
                     
                     <DropdownMenuItem asChild className="cursor-pointer py-2 rounded-md">
-                      <Link href="/perfil" className="flex items-center">
+                      <Link href="/dashboard/perfil" className="flex items-center">
                         <User className="mr-3 h-4 w-4 text-slate-600" />
                         <span className="text-sm">Mi Perfil</span>
                       </Link>
@@ -308,6 +330,20 @@ export function Navbar() {
                     </div>
                     
                     <DropdownMenuSeparator className="my-2" />
+                    
+                    {user?.es_admin && (
+                      <DropdownMenuItem asChild className="cursor-pointer py-2.5 rounded-md">
+                        <Link href="/dashboard/admin" className="flex items-center">
+                          <div className="mr-3 flex h-8 w-8 items-center justify-center rounded-lg bg-red-100">
+                            <Shield className="h-4 w-4 text-red-600" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-sm font-medium">Panel de Administración</div>
+                            <div className="text-xs text-slate-500">Gestión completa</div>
+                          </div>
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
                     
                     {user?.es_cliente && (
                       <DropdownMenuItem asChild className="cursor-pointer py-2.5 rounded-md">

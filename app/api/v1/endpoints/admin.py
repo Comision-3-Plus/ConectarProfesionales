@@ -437,6 +437,85 @@ def simular_pago_completado(
 # ==========================================
 
 @router.get(
+    "/users",
+    response_model=dict,
+    summary="Listar todos los usuarios (paginado)",
+    description="""
+    Lista todos los usuarios del sistema de forma paginada.
+    
+    **Paginación:**
+    - page: Número de página (default: 1)
+    - limit: Usuarios por página (default: 10, max: 100)
+    
+    **Respuesta:**
+    ```json
+    {
+        "users": [...],
+        "total": 150,
+        "page": 1,
+        "limit": 10,
+        "totalPages": 15
+    }
+    ```
+    
+    **Uso:** Panel de administración para ver todos los usuarios registrados.
+    """,
+    dependencies=[Depends(get_current_admin_user)]
+)
+def list_all_users(
+    page: int = 1,
+    limit: int = 10,
+    db: Session = Depends(get_db)
+):
+    """
+    Lista todos los usuarios del sistema con paginación.
+    
+    Args:
+        page: Número de página (mínimo 1)
+        limit: Cantidad de resultados por página (máximo 100)
+        
+    Returns:
+        Diccionario con users, total, page, limit y totalPages
+    """
+    # Validaciones
+    if page < 1:
+        page = 1
+    if limit < 1:
+        limit = 10
+    if limit > 100:
+        limit = 100
+    
+    # Calcular offset
+    offset = (page - 1) * limit
+    
+    # Query para contar total de usuarios
+    total = db.query(Usuario).count()
+    
+    # Query para obtener usuarios paginados
+    usuarios = (
+        db.query(Usuario)
+        .order_by(Usuario.fecha_creacion.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    
+    # Calcular total de páginas
+    import math
+    total_pages = math.ceil(total / limit) if total > 0 else 1
+    
+    print(f"📋 Admin listando usuarios: página {page}/{total_pages} ({len(usuarios)} usuarios)")
+    
+    return {
+        "users": [UserSearchResult.model_validate(u) for u in usuarios],
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "totalPages": total_pages
+    }
+
+
+@router.get(
     "/users/search",
     response_model=List[UserSearchResult],
     summary="Buscar usuarios por email",

@@ -17,7 +17,7 @@ import { Separator } from '@/components/ui/separator';
 import { Filter, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { searchService, publicService } from '@/lib/services';
-import type { SearchFilters } from '@/types';
+import type { SearchFilters, SearchResult } from '@/types';
 
 export default function BrowsePage() {
   const [filters, setFilters] = useState<SearchFilters>({});
@@ -33,7 +33,14 @@ export default function BrowsePage() {
   // Fetch professionals with filters (sin oficios por ahora)
   const { data, isLoading } = useQuery({
     queryKey: ['professionals', 'search', filters, page],
-    queryFn: () => searchService.searchProfessionals(filters),
+    queryFn: () => searchService.searchProfessionals({
+      oficio: filters.oficio,
+      ubicacion_lat: filters.ubicacion_lat || 0,
+      ubicacion_lon: filters.ubicacion_lon || 0,
+      radio_km: filters.radio_km,
+      incluir_fuera_de_radio: filters.incluir_fuera_de_radio,
+      solo_disponibles_ahora: filters.solo_disponibles_ahora,
+    }),
     enabled: false, // Deshabilitar búsqueda automática hasta tener ubicación
   });
 
@@ -178,7 +185,7 @@ export default function BrowsePage() {
             Explorar Profesionales
           </h1>
           <p className="mt-2 text-slate-600">
-            {data ? `${data.total} profesionales encontrados` : 'Cargando...'}
+            {data ? `${data.length} profesionales encontrados` : 'Cargando...'}
           </p>
         </div>
 
@@ -226,16 +233,16 @@ export default function BrowsePage() {
                   />
                 ))}
               </div>
-            ) : data && data.items.length > 0 ? (
+            ) : data && data.length > 0 ? (
               <>
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                  {data.items.map((professional) => (
+                  {data.map((professional: SearchResult) => (
                     <ProfessionalCard key={professional.id} professional={professional} />
                   ))}
                 </div>
 
                 {/* Pagination */}
-                {data.pages > 1 && (
+                {data.length > 12 && (
                   <div className="mt-8 flex items-center justify-center space-x-2">
                     <Button
                       variant="outline"
@@ -245,11 +252,11 @@ export default function BrowsePage() {
                       Anterior
                     </Button>
                     <span className="text-sm text-slate-600">
-                      Página {page} de {data.pages}
+                      Página {page}
                     </span>
                     <Button
                       variant="outline"
-                      disabled={page === data.pages}
+                      disabled={page * 12 >= data.length}
                       onClick={() => setPage((p) => p + 1)}
                     >
                       Siguiente

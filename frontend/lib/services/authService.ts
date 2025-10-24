@@ -39,9 +39,12 @@ export const authService = {
       },
     });
 
-    // Guardar token en localStorage
+    // Guardar token en localStorage y en cookies
     if (response.data.access_token) {
       localStorage.setItem('access_token', response.data.access_token);
+      
+      // Guardar en cookies para que el middleware pueda acceder
+      document.cookie = `access_token=${response.data.access_token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
     }
 
     return response.data;
@@ -66,10 +69,12 @@ export const authService = {
   },
 
   /**
-   * Logout (limpia token del localStorage)
+   * Logout (limpia token del localStorage y cookies)
    */
   logout: () => {
     localStorage.removeItem('access_token');
+    // Eliminar cookie
+    document.cookie = 'access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
     window.location.href = '/login';
   },
 

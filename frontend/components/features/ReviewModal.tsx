@@ -10,7 +10,7 @@ import { clienteService } from '@/lib/services';
 import { toast } from 'sonner';
 
 interface ReviewModalProps {
-  workId: number;
+  workId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -23,7 +23,7 @@ export function ReviewModal({ workId, open, onOpenChange }: ReviewModalProps) {
 
   const reviewMutation = useMutation({
     mutationFn: (data: { rating: number; texto_resena?: string }) =>
-      clienteService.crearResena(workId.toString(), data),
+      clienteService.crearResena(workId, data),
     onSuccess: () => {
       toast.success('Reseña enviada correctamente');
       queryClient.invalidateQueries({ queryKey: ['works'] });

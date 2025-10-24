@@ -2,7 +2,7 @@
 Esquemas Pydantic para validación de datos de usuarios.
 Estos esquemas se usan en los endpoints de la API.
 """
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, computed_field
 from typing import Optional
 from datetime import datetime
 from uuid import UUID
@@ -43,6 +43,25 @@ class UserRead(UserBase):
     avatar_url: Optional[str] = None
     infracciones_chat: int = 0
     is_chat_banned: bool = False
+    
+    # Helper computed fields para el frontend (se incluyen automáticamente en la serialización)
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def es_admin(self) -> bool:
+        """Retorna True si el usuario es administrador"""
+        return self.rol == UserRole.ADMIN
+    
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def es_profesional(self) -> bool:
+        """Retorna True si el usuario es profesional"""
+        return self.rol == UserRole.PROFESIONAL
+    
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def es_cliente(self) -> bool:
+        """Retorna True si el usuario es cliente"""
+        return self.rol == UserRole.CLIENTE
     
     model_config = ConfigDict(from_attributes=True)
 

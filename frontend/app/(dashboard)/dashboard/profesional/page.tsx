@@ -52,7 +52,7 @@ export default function ProfessionalDashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-slate-900">
-              {profile?.rating_promedio.toFixed(1) || '0.0'}
+              {profile?.rating_promedio?.toFixed(1) || '0.0'}
             </div>
             <p className="text-xs text-slate-500">
               {profile?.total_resenas || 0} reseñas
@@ -121,7 +121,7 @@ export default function ProfessionalDashboardPage() {
                       </div>
                       <p className="text-sm text-slate-600">{oferta.descripcion}</p>
                       <p className="text-lg font-bold text-orange-500">
-                        ${oferta.precio.toFixed(2)}
+                        ${(oferta.precio || oferta.precio_final).toFixed(2)}
                       </p>
                     </div>
                   </div>
