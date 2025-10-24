@@ -40,4 +40,16 @@ export const userService = {
     });
     return response.data;
   },
+
+  /**
+   * POST /api/v1/users/me/change-password
+   * Cambiar contraseña del usuario actual
+   */
+  changePassword: async (currentPassword: string, newPassword: string): Promise<{ message: string; success: boolean }> => {
+    const response = await api.post('/users/me/change-password', {
+      current_password: currentPassword,
+      new_password: newPassword,
+    });
+    return response.data;
+  },
 };

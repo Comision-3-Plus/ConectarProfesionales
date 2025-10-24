@@ -48,18 +48,26 @@ class Settings(BaseSettings):
     @property
     def DATABASE_URL(self) -> str:
         """Construye la URL de conexión a PostgreSQL"""
-        return (
+        base_url = (
             f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
+        # Si conecta a Supabase (o cualquier host remoto que no sea 'db' o 'localhost'), usar SSL
+        if self.POSTGRES_HOST not in ("db", "localhost", "127.0.0.1"):
+            base_url += "?sslmode=require"
+        return base_url
     
     @property
     def ASYNC_DATABASE_URL(self) -> str:
         """URL para conexión asíncrona (si se necesita en el futuro)"""
-        return (
+        base_url = (
             f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
+        # Si conecta a Supabase (o cualquier host remoto que no sea 'db' o 'localhost'), usar SSL
+        if self.POSTGRES_HOST not in ("db", "localhost", "127.0.0.1"):
+            base_url += "?ssl=require"
+        return base_url
     
     class Config:
         env_file = ".env"

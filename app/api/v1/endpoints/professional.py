@@ -22,7 +22,7 @@ from app.schemas.professional import (
 )
 from app.schemas.oficio import ProfessionalOficiosUpdate, OficioRead
 from app.schemas.servicio_instantaneo import ServicioInstantaneoRead
-from app.schemas.portfolio import PortfolioItemCreate, PortfolioItemRead
+from app.schemas.portfolio import PortfolioItemCreate, PortfolioItemRead, PortfolioItemUpdate
 from app.schemas.oferta import OfertaCreate, OfertaRead
 from app.services import kyc_service
 from app.services.firebase_service import firebase_service
@@ -268,6 +268,69 @@ def update_payout_info(
 # ENDPOINTS DE PORTFOLIO
 # ==========================================
 
+
+@router.get(
+    "/portfolio",
+    response_model=List[PortfolioItemRead],
+    summary="Listar todos los items de portfolio del profesional"
+)
+def list_portfolio_items(
+    current_professional: Profesional = Depends(get_current_professional),
+    db: Session = Depends(get_db),
+):
+    """
+    Devuelve una lista de todos los items de portfolio del profesional autenticado.
+    """
+    portfolio_items = (
+        db.query(PortfolioItem)
+        .filter(PortfolioItem.profesional_id == current_professional.id)
+        .order_by(PortfolioItem.fecha_creacion.desc())
+        .all()
+    )
+    return [PortfolioItemRead.model_validate(item) for item in portfolio_items]
+
+
+@router.put(
+    "/portfolio/{item_id}",
+    response_model=PortfolioItemRead,
+    summary="Actualizar un item de portfolio"
+)
+def update_portfolio_item(
+    item_id: UUID,
+    item_data: PortfolioItemUpdate,
+    current_professional: Profesional = Depends(get_current_professional),
+    db: Session = Depends(get_db),
+):
+    """
+    Actualiza el título o la descripción de un item de portfolio.
+    El profesional debe ser el dueño del item.
+    """
+    portfolio_item = (
+        db.query(PortfolioItem)
+        .filter(
+            PortfolioItem.id == item_id,
+            PortfolioItem.profesional_id == current_professional.id
+        )
+        .first()
+    )
+
+    if not portfolio_item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item de portfolio no encontrado o no pertenece al profesional"
+        )
+
+    update_data = item_data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(portfolio_item, field, value)
+
+    db.add(portfolio_item)
+    db.commit()
+    db.refresh(portfolio_item)
+
+    return PortfolioItemRead.model_validate(portfolio_item)
+
+
 @router.post(
     "/portfolio",
     response_model=PortfolioItemRead,
@@ -378,16 +441,12 @@ def upload_portfolio_image(
     return PortfolioItemRead.model_validate(portfolio_item)
 
 
-@router.delete(
-    "/portfolio/{item_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Eliminar un item de portfolio"
-)
+@router.delete("/portfolio/{item_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Eliminar un item de portfolio")
 def delete_portfolio_item(
     item_id: UUID,
     current_professional: Profesional = Depends(get_current_professional),
     db: Session = Depends(get_db),
-):
+): 
     """
     Elimina un item de portfolio y todas sus imágenes asociadas.
     El profesional debe ser el dueño del item.
@@ -402,13 +461,13 @@ def delete_portfolio_item(
         )
         .first()
     )
-    
+
     if not portfolio_item:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Item de portfolio no encontrado o no pertenece al profesional"
         )
-    
+
     # Eliminar archivos físicos de las imágenes
     for imagen in portfolio_item.imagenes:
         # Extraer el path del filesystem de la URL
@@ -421,11 +480,69 @@ def delete_portfolio_item(
                 except Exception as e:
                     # Log el error pero continúa con la eliminación de la BD
                     print(f"Error eliminando archivo {file_path}: {e}")
-    
+
     # Eliminar el item (CASCADE eliminará las imágenes de la BD)
     db.delete(portfolio_item)
     db.commit()
-    
+
+    return None
+
+
+@router.delete("/portfolio/{item_id}/image/{image_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Eliminar una imagen de un item de portfolio")
+def delete_portfolio_image(
+    item_id: UUID,
+    image_id: UUID,
+    current_professional: Profesional = Depends(get_current_professional),
+    db: Session = Depends(get_db),
+):
+    """
+    Elimina una imagen específica de un item de portfolio.
+    El profesional debe ser el dueño del item.
+    Se elimina el archivo físico y el registro de la BD.
+    """
+    # Verificar que el item existe y pertenece al profesional actual
+    portfolio_item = (
+        db.query(PortfolioItem)
+        .filter(
+            PortfolioItem.id == item_id,
+            PortfolioItem.profesional_id == current_professional.id
+        )
+        .first()
+    )
+
+    if not portfolio_item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item de portfolio no encontrado o no pertenece al profesional"
+        )
+
+    # Encontrar la imagen a eliminar
+    imagen_a_eliminar = None
+    for img in portfolio_item.imagenes:
+        if img.id == image_id:
+            imagen_a_eliminar = img
+            break
+
+    if not imagen_a_eliminar:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Imagen no encontrada en este item de portfolio"
+        )
+
+    # Eliminar archivo físico
+    if imagen_a_eliminar.imagen_url.startswith("/uploads/portfolio/"):
+        filename = imagen_a_eliminar.imagen_url.split("/")[-1]
+        file_path = os.path.join(PORTFOLIO_UPLOAD_DIR, filename)
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f"Error eliminando archivo {file_path}: {e}")
+
+    # Eliminar registro de la BD
+    db.delete(imagen_a_eliminar)
+    db.commit()
+
     return None
 
 

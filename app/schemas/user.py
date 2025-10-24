@@ -26,9 +26,20 @@ class UserCreate(UserBase):
 
 
 class UserUpdate(BaseModel):
-    """Schema para actualización parcial de datos básicos del usuario"""
+    """
+    Schema para actualizar datos básicos del usuario.
+    Solo campos opcionales: nombre y apellido.
+    """
     nombre: Optional[str] = Field(None, min_length=1, max_length=100)
     apellido: Optional[str] = Field(None, min_length=1, max_length=100)
+
+
+class PasswordChange(BaseModel):
+    """
+    Schema para cambiar la contraseña del usuario actual.
+    """
+    current_password: str = Field(..., min_length=8)
+    new_password: str = Field(..., min_length=8)
 
 
 class UserRead(UserBase):

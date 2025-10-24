@@ -17,6 +17,7 @@ import {
   PortfolioItemRead,
   OfertaCreate,
   OfertaRead,
+  TrabajoRead,
 } from '@/types';
 
 export const professionalService = {
@@ -167,6 +168,28 @@ export const professionalService = {
    */
   listOfertas: async (): Promise<OfertaRead[]> => {
     const response = await api.get<OfertaRead[]>('/professional/ofertas');
+    return response.data;
+  },
+
+  // ==========================================
+  // TRABAJOS
+  // ==========================================
+
+  /**
+   * GET /api/v1/professional/trabajos
+   * Listar trabajos del profesional
+   */
+  listTrabajos: async (): Promise<TrabajoRead[]> => {
+    const response = await api.get<TrabajoRead[]>('/professional/trabajos');
+    return response.data;
+  },
+
+  /**
+   * GET /api/v1/professional/portfolio
+   * Listar portfolio del profesional
+   */
+  listPortfolio: async (): Promise<PortfolioItemRead[]> => {
+    const response = await api.get<PortfolioItemRead[]>('/professional/portfolio');
     return response.data;
   },
 };

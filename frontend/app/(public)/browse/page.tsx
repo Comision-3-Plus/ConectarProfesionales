@@ -30,7 +30,7 @@ export default function BrowsePage() {
     queryFn: () => publicService.getOficios(),
   });
 
-  // Fetch professionals with filters (sin oficios por ahora)
+  // Fetch professionals with filters
   const { data, isLoading } = useQuery({
     queryKey: ['professionals', 'search', filters, page],
     queryFn: () => searchService.searchProfessionals({
@@ -38,10 +38,11 @@ export default function BrowsePage() {
       ubicacion_lat: filters.ubicacion_lat || 0,
       ubicacion_lon: filters.ubicacion_lon || 0,
       radio_km: filters.radio_km,
-      incluir_fuera_de_radio: filters.incluir_fuera_de_radio,
+      incluir_fuera_de_radio: true, // Incluir todos si no hay ubicación
       solo_disponibles_ahora: filters.solo_disponibles_ahora,
     }),
-    enabled: false, // Deshabilitar búsqueda automática hasta tener ubicación
+    // Habilitado por defecto para mostrar todos los profesionales
+    staleTime: 30000,
   });
 
   const handleFilterChange = (key: keyof SearchFilters, value: string | number | undefined) => {

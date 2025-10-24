@@ -6,8 +6,9 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status
 from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
-from app.schemas.user import UserRead, UserUpdate
+from app.schemas.user import UserRead, UserUpdate, PasswordChange
 from app.models.user import Usuario
+from app.core.security import verify_password, get_password_hash as hash_password
 
 router = APIRouter()
 
@@ -89,3 +90,37 @@ def upload_avatar(
     db.refresh(current_user)
     
     return current_user
+
+
+@router.post("/me/change-password", response_model=dict)
+def change_password(
+    password_data: PasswordChange,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Cambia la contraseña del usuario actual.
+    Requiere la contraseña actual para validación.
+    """
+    # Verificar que la contraseña actual sea correcta
+    if not verify_password(password_data.current_password, current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La contraseña actual es incorrecta"
+        )
+    
+    # Validar que la nueva contraseña sea diferente
+    if password_data.current_password == password_data.new_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La nueva contraseña debe ser diferente a la actual"
+        )
+    
+    # Actualizar la contraseña
+    current_user.hashed_password = hash_password(password_data.new_password)
+    db.commit()
+    
+    return {
+        "message": "Contraseña actualizada exitosamente",
+        "success": True
+    }
