@@ -1,19 +1,38 @@
-# 🏗️ Marketplace de Profesionales - Backend API
+# 🏗️ Marketplace de Profesionales - ConectarProfesionales
 
 > **Plataforma de intermediación entre profesionales y clientes con sistema de pagos, geolocalización, chat en tiempo real y gamificación.**
 
-API RESTful headless construida con **FastAPI**, **PostgreSQL + PostGIS**, **Firebase** y **MercadoPago**, orquestada con **Docker**.
+**Backend:** API RESTful con **FastAPI**, **PostgreSQL + PostGIS**, **Firebase** y **MercadoPago**  
+**Frontend:** App con **Next.js 15**, **React 19**, **TypeScript** y **shadcn/ui**
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?style=flat&logo=postgresql)](https://www.postgresql.org/)
 [![PostGIS](https://img.shields.io/badge/PostGIS-3.4-4169E1?style=flat&logo=postgresql)](https://postgis.net/)
+[![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=flat&logo=next.js)](https://nextjs.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat&logo=docker)](https://www.docker.com/)
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat&logo=python)](https://www.python.org/)
 
 ---
 
-## ✨ Estado del Proyecto
+## 📚 DOCUMENTACIÓN COMPLETA
 
+### 🚀 Inicio Rápido
+- **[RESUMEN_RAPIDO.md](./RESUMEN_RAPIDO.md)** - Empieza aquí (5 min)
+- **[INDICE_DOCUMENTACION.md](./INDICE_DOCUMENTACION.md)** - Índice maestro de toda la documentación
+
+### 📋 Para Desarrolladores
+- **[TAREAS_PENDIENTES_FRONTEND.md](./TAREAS_PENDIENTES_FRONTEND.md)** - Lista completa de tareas pendientes
+- **[BUGS_Y_ERRORES.md](./BUGS_Y_ERRORES.md)** - Bugs conocidos y soluciones
+- **[REVISION_Y_CORRECCIONES_24_OCT_2025.md](./REVISION_Y_CORRECCIONES_24_OCT_2025.md)** - Reporte de revisión técnica
+
+### 💼 Para Stakeholders
+- **[REPORTE_EJECUTIVO.md](./REPORTE_EJECUTIVO.md)** - Estado del proyecto y plan de trabajo
+
+---
+
+## ✨ Estado del Proyecto (24 Oct 2025)
+
+### Backend ✅ 100%
 | Módulo | Estado | Descripción |
 |--------|--------|-------------|
 | **Módulo 1** | ✅ **COMPLETO** | Autenticación JWT, KYC, RBAC |
@@ -25,7 +44,18 @@ API RESTful headless construida con **FastAPI**, **PostgreSQL + PostGIS**, **Fir
 | **Módulo 7** | ✅ **COMPLETO** | Gamificación, Niveles, Comisiones dinámicas |
 | **Dashboard Admin** | ✅ **COMPLETO** | Métricas financieras, Moderación, Baneos |
 
-**🎉 Plataforma 100% funcional y lista para producción**
+### Frontend ⚠️ 60%
+| Componente | Estado | Progreso |
+|------------|--------|----------|
+| **Infraestructura** | ✅ Completo | 100% |
+| **Autenticación** | ✅ Completo | 100% |
+| **Admin Dashboard** | ✅ Completo | 100% |
+| **Cliente Dashboard** | ⚠️ Parcial | 50% |
+| **Profesional Dashboard** | ⚠️ Parcial | 50% |
+| **Sistema de Chat** | ❌ Pendiente | 0% |
+| **Perfil Público** | ⚠️ Parcial | 70% |
+
+**🎯 Objetivo:** MVP funcional en 5-6 días de desarrollo
 
 ---
 

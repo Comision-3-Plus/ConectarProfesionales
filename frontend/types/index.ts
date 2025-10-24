@@ -69,6 +69,9 @@ export interface UserRead {
   avatar_url?: string;
   infracciones_chat: number;
   is_chat_banned: boolean;
+  telefono?: string;
+  direccion?: string;
+  kyc_verificado?: boolean;
   // Helper properties
   es_cliente?: boolean;
   es_profesional?: boolean;
@@ -244,6 +247,11 @@ export interface OfertaRead {
   fecha_actualizacion: string;
   precio?: number; // Legacy field
   expires_at?: string; // Legacy field
+  // Campos adicionales para visualización
+  profesional_nombre?: string;
+  cliente_nombre?: string;
+  oficio_nombre?: string;
+  precio_ofertado?: number; // alias de precio_final
 }
 
 export interface OfertaAcceptResponse {
@@ -274,6 +282,16 @@ export interface TrabajoRead {
   fecha_actualizacion: string;
   // Legacy field
   estado?: string;
+  // Campos adicionales para visualización
+  cliente_nombre?: string;
+  profesional_nombre?: string;
+  descripcion?: string;
+  monto?: number; // alias de precio_final
+  fecha_inicio?: string;
+  fecha_finalizacion?: string;
+  oficio_nombre?: string;
+  ubicacion_lat?: number;
+  ubicacion_lng?: number;
 }
 
 export interface TrabajoFinalizarResponse {

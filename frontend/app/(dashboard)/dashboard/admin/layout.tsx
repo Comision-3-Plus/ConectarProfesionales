@@ -153,7 +153,7 @@ export default function AdminLayout({
                     Accede a la guía completa del panel de administración
                   </p>
                   <Link
-                    href="/docs/admin"
+                    href="/dashboard/admin/documentacion"
                     className="text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium mt-2 inline-block"
                   >
                     Ver guía →

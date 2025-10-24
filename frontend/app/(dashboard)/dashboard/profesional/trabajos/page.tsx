@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Briefcase, Clock, CheckCircle2, XCircle, DollarSign, User, Calendar, Loader2 } from "lucide-react"
 import { professionalService } from "@/lib/services/professionalService"
+import { TrabajoRead } from "@/types"
 
 type EstadoTrabajo = "PENDIENTE_PAGO" | "PAGADO_EN_ESCROW" | "LIBERADO" | "CANCELADO"
 
@@ -38,19 +39,19 @@ export default function TrabajosProfesionalPage() {
     staleTime: 30000,
   })
 
-  const trabajosActivos = trabajos.filter((t: any) => 
+  const trabajosActivos = trabajos.filter((t) => 
     t.estado === "PENDIENTE_PAGO" || t.estado === "PAGADO_EN_ESCROW"
   )
 
-  const trabajosFinalizados = trabajos.filter((t: any) => 
+  const trabajosFinalizados = trabajos.filter((t) => 
     t.estado === "LIBERADO"
   )
 
-  const trabajosCancelados = trabajos.filter((t: any) => 
+  const trabajosCancelados = trabajos.filter((t) => 
     t.estado === "CANCELADO"
   )
 
-  const renderTrabajo = (trabajo: any) => {
+  const renderTrabajo = (trabajo: TrabajoRead) => {
     const Icon = estadoIcons[trabajo.estado as EstadoTrabajo]
     
     return (
@@ -68,7 +69,7 @@ export default function TrabajosProfesionalPage() {
               </div>
               <CardDescription className="flex items-center gap-2">
                 <Calendar className="h-4 w-4" />
-                Inicio: {new Date(trabajo.fecha_inicio).toLocaleDateString()}
+                Inicio: {trabajo.fecha_inicio ? new Date(trabajo.fecha_inicio).toLocaleDateString() : 'Sin fecha'}
                 {trabajo.fecha_finalizacion && (
                   <> • Fin: {new Date(trabajo.fecha_finalizacion).toLocaleDateString()}</>
                 )}
@@ -203,7 +204,7 @@ export default function TrabajosProfesionalPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${trabajosFinalizados.reduce((sum: number, t: any) => sum + (t.monto || 0), 0).toLocaleString()}
+              ${trabajosFinalizados.reduce((sum: number, t: TrabajoRead) => sum + (t.precio_final || 0), 0).toLocaleString()}
             </div>
             <p className="text-xs text-muted-foreground">De trabajos completados</p>
           </CardContent>

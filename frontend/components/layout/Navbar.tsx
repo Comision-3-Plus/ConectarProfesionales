@@ -206,7 +206,7 @@ export function Navbar() {
                     </DropdownMenuItem>
                     
                     <DropdownMenuItem asChild className="cursor-pointer py-2 rounded-md">
-                      <Link href="/configuracion" className="flex items-center">
+                      <Link href="/dashboard/configuracion" className="flex items-center">
                         <Settings className="mr-3 h-4 w-4 text-slate-600" />
                         <span className="text-sm">Configuración</span>
                       </Link>

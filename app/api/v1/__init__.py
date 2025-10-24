@@ -2,7 +2,7 @@
 API v1 Router
 """
 from fastapi import APIRouter
-from app.api.v1.endpoints import health, auth, users, professional, admin, public, search, webhook, cliente
+from app.api.v1.endpoints import health, auth, users, professional, admin, public, search, webhook, cliente, chat
 
 api_router = APIRouter()
 
@@ -16,3 +16,4 @@ api_router.include_router(admin.router, prefix="/admin", tags=["admin"])
 api_router.include_router(public.router, prefix="/public", tags=["public"])
 api_router.include_router(search.router, prefix="/search", tags=["search"])
 api_router.include_router(webhook.router, prefix="/webhook", tags=["webhook"])
+api_router.include_router(chat.router, tags=["chat"])

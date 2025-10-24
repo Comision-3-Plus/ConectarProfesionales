@@ -43,12 +43,8 @@ export default function LoginPage() {
       setAuth(user, tokens.access_token);
       toast.success('¡Bienvenido!');
       
-      // Redirect based on user type
-      if (user.rol === 'PROFESIONAL') {
-        router.push('/dashboard/profesional');
-      } else {
-        router.push('/dashboard/cliente');
-      }
+      // Redirect to home page
+      router.push('/');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Error al iniciar sesión');
     } finally {
