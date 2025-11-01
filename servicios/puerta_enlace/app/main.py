@@ -105,7 +105,16 @@ RUTAS_SERVICIO = {
     "/buscar": "profesionales",
     "/public": "profesionales",
     "/publico": "profesionales",
-    "/admin": "profesionales",  # Admin endpoints
+    
+    # Admin - Rutas específicas primero (más específico gana)
+    "/admin/metrics/users": "usuarios",  # Métricas de usuarios en servicio_usuarios
+    "/admin/dashboard": "pagos",  # Dashboard financiero en servicio_pagos
+    "/admin/trabajo": "pagos",    # Admin trabajos en servicio_pagos
+    "/admin/kyc": "profesionales", # KYC en profesionales
+    "/admin/users": "usuarios",    # Gestión usuarios
+    "/admin/oficios": "profesionales", # Oficios
+    "/admin/servicios": "profesionales", # Servicios instantáneos
+    "/admin": "profesionales",    # Otros admin endpoints (fallback)
     
     # Chat y Ofertas
     "/chat": "chat",
@@ -126,8 +135,14 @@ RUTAS_SERVICIO = {
 }
 
 def obtener_servicio_destino(path: str) -> Optional[str]:
-    """Determina a qué servicio debe ir la petición basándose en la ruta"""
-    for ruta_prefijo, servicio in RUTAS_SERVICIO.items():
+    """
+    Determina a qué servicio debe ir la petición basándose en la ruta.
+    Ordena las rutas por longitud (más largas primero) para que las más específicas tengan prioridad.
+    """
+    # Ordenar rutas por longitud descendente para que las más específicas se evalúen primero
+    rutas_ordenadas = sorted(RUTAS_SERVICIO.items(), key=lambda x: len(x[0]), reverse=True)
+    
+    for ruta_prefijo, servicio in rutas_ordenadas:
         if path.startswith(ruta_prefijo):
             return servicio
     return None
@@ -137,8 +152,15 @@ async def gateway_route(path: str, request: Request):
     """
     Enruta todas las peticiones a los microservicios correspondientes
     """
-    # Determinar servicio destino
-    servicio_nombre = obtener_servicio_destino(f"/{path}")
+    # Normalizar prefijos de versión (acepta /api y /api/v1)
+    full_path = f"/{path}"
+    for version_prefix in ("/api/v1", "/api"):
+        if full_path.startswith(version_prefix + "/") or full_path == version_prefix:
+            full_path = full_path[len(version_prefix):] or "/"
+            break
+
+    # Determinar servicio destino sobre el path normalizado
+    servicio_nombre = obtener_servicio_destino(full_path)
     
     if not servicio_nombre:
         raise HTTPException(
@@ -154,8 +176,9 @@ async def gateway_route(path: str, request: Request):
             detail=f"Servicio {servicio_nombre} no disponible"
         )
     
-    # Construir URL completa del servicio destino
-    url_destino = f"{servicio_url}/{path}"
+    # Construir URL completa del servicio destino con path normalizado
+    # full_path ya comienza con "/"
+    url_destino = f"{servicio_url}{full_path}"
     
     # Obtener query params
     query_params = dict(request.query_params)
@@ -218,11 +241,44 @@ async def gateway_route(path: str, request: Request):
             raise HTTPException(status_code=405, detail="Método no permitido")
         
         # Retornar la respuesta del microservicio
-        return JSONResponse(
-            content=response.json() if response.headers.get("content-type", "").startswith("application/json") else response.text,
-            status_code=response.status_code,
-            headers=dict(response.headers)
-        )
+        upstream_headers = dict(response.headers)
+        # Filtrar headers que pueden causar inconsistencias al reenviar
+        headers_filtrados_resp = {
+            k: v
+            for k, v in upstream_headers.items()
+            if k.lower() not in [
+                "content-length",  # será recalculado
+                "transfer-encoding",  # evitar conflictos con streaming
+                "content-encoding",  # evitar gzip inconsistente
+                "connection"
+            ]
+        }
+
+        content_type = upstream_headers.get("content-type", "")
+        try:
+            if content_type.startswith("application/json"):
+                return JSONResponse(
+                    content=response.json(),
+                    status_code=response.status_code,
+                    headers=headers_filtrados_resp
+                )
+            else:
+                from fastapi import Response
+                return Response(
+                    content=response.content,
+                    status_code=response.status_code,
+                    media_type=content_type or None,
+                    headers=headers_filtrados_resp
+                )
+        except Exception as e:
+            # Como fallback, devolver texto plano
+            from fastapi import Response
+            return Response(
+                content=response.text,
+                status_code=response.status_code,
+                media_type="text/plain",
+                headers=headers_filtrados_resp
+            )
         
     except httpx.TimeoutException:
         raise HTTPException(

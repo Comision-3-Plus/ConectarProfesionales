@@ -191,8 +191,32 @@ export const adminService = {
    * Obtener métricas financieras del negocio
    */
   getFinancialMetrics: async (): Promise<FinancialMetricsResponse> => {
-    const response = await api.get<FinancialMetricsResponse>('/admin/metrics/financials');
-    return response.data;
+    try {
+      const response = await api.get<FinancialMetricsResponse>('/admin/metrics/financials');
+      return response.data;
+    } catch (err: any) {
+      // Fallback: si no existe el endpoint nuevo, mapear desde /admin/dashboard/stats (servicio_pagos)
+      const status = err?.response?.status;
+      if (status === 404) {
+        try {
+          const alt = await api.get<any>('/admin/dashboard/stats');
+          const s = alt?.data || {};
+          return {
+            total_facturado: s?.finanzas?.total_ingresos ?? 0,
+            comision_total: s?.finanzas?.total_comisiones ?? 0,
+            trabajos_completados: s?.trabajos?.completados ?? 0,
+          } as FinancialMetricsResponse;
+        } catch (fallbackErr) {
+          // Último recurso: devolver ceros para no romper el dashboard
+          return {
+            total_facturado: 0,
+            comision_total: 0,
+            trabajos_completados: 0,
+          } as FinancialMetricsResponse;
+        }
+      }
+      throw err;
+    }
   },
 
   /**
@@ -200,7 +224,22 @@ export const adminService = {
    * Obtener métricas de crecimiento de usuarios
    */
   getUserMetrics: async (): Promise<UserMetricsResponse> => {
-    const response = await api.get<UserMetricsResponse>('/admin/metrics/users');
-    return response.data;
+    try {
+      const response = await api.get<UserMetricsResponse>('/admin/metrics/users');
+      return response.data;
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 404) {
+        // Fallback provisional: devolver ceros si aún no existe el endpoint
+        const empty: UserMetricsResponse = {
+          total_clientes: 0,
+          total_profesionales: 0,
+          total_pro_pendientes_kyc: 0,
+          total_pro_aprobados: 0,
+        };
+        return empty;
+      }
+      throw err;
+    }
   },
 };

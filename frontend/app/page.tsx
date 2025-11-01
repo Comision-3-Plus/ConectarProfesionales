@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ProfessionalCard } from '@/components/features/ProfessionalCard';
@@ -14,26 +15,58 @@ import {
   Clock,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
 import type { SearchResult } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function HomePage() {
+  const router = useRouter();
+  const { isAuthenticated, user } = useAuth();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  
   // TODO: Implementar endpoint de destacados en el backend
   // Por ahora, deshabilitamos la query para no romper la página
   const destacados: SearchResult[] = [];
   const isLoading = false;
 
+  const handlePublishProject = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    alert('[DEBUG] Click detectado!');
+    console.log('[handlePublishProject] ¡Función ejecutada!', { mounted, isAuthenticated, user });
+    
+    if (!mounted) {
+      alert('No montado aún');
+      return;
+    }
+    
+    // Simplificar la lógica - siempre ir a publicar si está logueado
+    if (isAuthenticated && user) {
+      alert(`Logueado como: ${user.email} - ${user.rol}`);
+      router.push('/dashboard/cliente/publicar');
+    } else {
+      alert('No logueado - ir a register');
+      router.push('/register');
+    }
+  };
+
   return (
     <div className="flex flex-col">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-slate-50 via-white to-orange-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 py-20 sm:py-32">
+      <section className="relative overflow-hidden bg-linear-to-br from-slate-50 via-white to-orange-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900 py-20 sm:py-32">
         {/* Animated Background Effects */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-1/4 -left-48 h-96 w-96 rounded-full bg-orange-500/20 dark:bg-orange-500/10 blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-0 right-0 h-[600px] w-[600px] rounded-full bg-gradient-to-r from-orange-300/30 to-orange-500/30 dark:from-orange-500/20 dark:to-orange-700/20 blur-3xl animate-blob"></div>
+          <div className="absolute bottom-0 right-0 h-[600px] w-[600px] rounded-full bg-linear-to-r from-orange-300/30 to-orange-500/30 dark:from-orange-500/20 dark:to-orange-700/20 blur-3xl animate-blob"></div>
           <div className="absolute top-0 right-1/4 h-96 w-96 rounded-full bg-blue-500/10 dark:bg-blue-500/5 blur-3xl animate-blob animation-delay-2000"></div>
           
           {/* Grid Pattern */}
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-size-[24px_24px]"></div>
           
           {/* Floating Elements */}
           <div className="absolute top-20 left-20 h-3 w-3 bg-orange-500 rounded-full animate-float opacity-60"></div>
@@ -52,10 +85,10 @@ export default function HomePage() {
             >
               {/* Logo ConectarPro */}
               <div className="mb-8 flex items-center justify-center lg:justify-start gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 shadow-lg">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br from-orange-500 to-orange-600 shadow-lg">
                   <Briefcase className="h-6 w-6 text-white" />
                 </div>
-                <span className="text-3xl font-bold bg-gradient-to-r from-orange-500 to-orange-600 dark:from-orange-400 dark:to-orange-500 bg-clip-text text-transparent">
+                <span className="text-3xl font-bold bg-linear-to-r from-orange-500 to-orange-600 dark:from-orange-400 dark:to-orange-500 bg-clip-text text-transparent">
                   ConectarPro
                 </span>
               </div>
@@ -63,7 +96,7 @@ export default function HomePage() {
               <h1 className="mb-6 text-4xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-5xl md:text-6xl">
                 Encuentra al{' '}
                 <span className="relative inline-block">
-                  <span className="relative z-10 bg-gradient-to-r from-orange-500 to-orange-600 dark:from-orange-400 dark:to-orange-500 bg-clip-text text-transparent">
+                  <span className="relative z-10 bg-linear-to-r from-orange-500 to-orange-600 dark:from-orange-400 dark:to-orange-500 bg-clip-text text-transparent">
                     Profesional Perfecto
                   </span>
                   <span className="absolute -bottom-2 left-0 h-3 w-full bg-orange-200/50 dark:bg-orange-500/20"></span>
@@ -94,14 +127,12 @@ export default function HomePage() {
               {/* CTA Buttons */}
               <div className="flex flex-col items-center justify-center gap-4 sm:flex-row lg:justify-start">
                 <Button
-                  asChild
+                  onClick={handlePublishProject}
                   size="lg"
                   className="w-full bg-orange-500 text-lg hover:bg-orange-600 shadow-lg shadow-orange-500/30 sm:w-auto"
                 >
-                  <Link href="/register">
-                    <Briefcase className="mr-2 h-5 w-5" />
-                    Publicar un Proyecto
-                  </Link>
+                  <Briefcase className="mr-2 h-5 w-5" />
+                  Publicar un Proyecto
                 </Button>
                 <Button
                   asChild
@@ -129,12 +160,12 @@ export default function HomePage() {
               className="hidden lg:block"
             >
               <div className="relative">
-                <div className="absolute -inset-4 rounded-2xl bg-gradient-to-r from-orange-500/20 to-orange-600/20 dark:from-orange-500/10 dark:to-orange-600/10 blur-2xl"></div>
+                <div className="absolute -inset-4 rounded-2xl bg-linear-to-r from-orange-500/20 to-orange-600/20 dark:from-orange-500/10 dark:to-orange-600/10 blur-2xl"></div>
                 <div className="relative rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-8 shadow-2xl">
                   <div className="space-y-4">
                     {/* Mock UI Elements */}
                     <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-full bg-gradient-to-br from-orange-400 to-orange-600"></div>
+                      <div className="h-12 w-12 rounded-full bg-linear-to-br from-orange-400 to-orange-600"></div>
                       <div className="flex-1">
                         <div className="h-3 w-32 rounded bg-slate-200"></div>
                         <div className="mt-2 h-2 w-24 rounded bg-slate-100"></div>
@@ -146,8 +177,8 @@ export default function HomePage() {
                       <div className="mt-2 h-2 w-3/4 rounded bg-slate-100"></div>
                     </div>
                     <div className="flex gap-2">
-                      <div className="h-20 flex-1 rounded-lg bg-gradient-to-br from-orange-50 to-orange-100"></div>
-                      <div className="h-20 flex-1 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100"></div>
+                      <div className="h-20 flex-1 rounded-lg bg-linear-to-br from-orange-50 to-orange-100"></div>
+                      <div className="h-20 flex-1 rounded-lg bg-linear-to-br from-slate-50 to-slate-100"></div>
                     </div>
                   </div>
                 </div>
@@ -179,9 +210,9 @@ export default function HomePage() {
               className="group"
             >
               <Card className="relative overflow-hidden border-2 border-slate-200 dark:border-slate-700 hover:border-orange-500 dark:hover:border-orange-400 transition-all duration-500 hover:shadow-2xl hover:shadow-orange-500/20 dark:bg-slate-800 h-full">
-                <div className="absolute inset-0 bg-gradient-to-br from-orange-500/0 to-orange-500/0 group-hover:from-orange-500/5 group-hover:to-orange-500/10 transition-all duration-500"></div>
+                <div className="absolute inset-0 bg-linear-to-br from-orange-500/0 to-orange-500/0 group-hover:from-orange-500/5 group-hover:to-orange-500/10 transition-all duration-500"></div>
                 <CardContent className="relative p-6">
-                  <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-950/30 dark:to-orange-900/30 shadow-lg group-hover:shadow-orange-500/50 group-hover:scale-110 transition-all duration-500">
+                  <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-linear-to-br from-orange-100 to-orange-200 dark:from-orange-950/30 dark:to-orange-900/30 shadow-lg group-hover:shadow-orange-500/50 group-hover:scale-110 transition-all duration-500">
                     <Shield className="h-7 w-7 text-orange-500 dark:text-orange-400 group-hover:rotate-12 transition-transform duration-500" />
                   </div>
                   <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-white group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors">Pago Seguro</h3>
@@ -201,9 +232,9 @@ export default function HomePage() {
               className="group"
             >
               <Card className="relative overflow-hidden border-2 border-slate-200 dark:border-slate-700 hover:border-orange-500 dark:hover:border-orange-400 transition-all duration-500 hover:shadow-2xl hover:shadow-orange-500/20 dark:bg-slate-800 h-full">
-                <div className="absolute inset-0 bg-gradient-to-br from-orange-500/0 to-orange-500/0 group-hover:from-orange-500/5 group-hover:to-orange-500/10 transition-all duration-500"></div>
+                <div className="absolute inset-0 bg-linear-to-br from-orange-500/0 to-orange-500/0 group-hover:from-orange-500/5 group-hover:to-orange-500/10 transition-all duration-500"></div>
                 <CardContent className="relative p-6">
-                  <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-950/30 dark:to-orange-900/30 shadow-lg group-hover:shadow-orange-500/50 group-hover:scale-110 transition-all duration-500">
+                  <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-linear-to-br from-orange-100 to-orange-200 dark:from-orange-950/30 dark:to-orange-900/30 shadow-lg group-hover:shadow-orange-500/50 group-hover:scale-110 transition-all duration-500">
                     <Award className="h-7 w-7 text-orange-500 dark:text-orange-400 group-hover:rotate-12 transition-transform duration-500" />
                   </div>
                   <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-white group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors">Verificados</h3>
@@ -223,9 +254,9 @@ export default function HomePage() {
               className="group"
             >
               <Card className="relative overflow-hidden border-2 border-slate-200 dark:border-slate-700 hover:border-orange-500 dark:hover:border-orange-400 transition-all duration-500 hover:shadow-2xl hover:shadow-orange-500/20 dark:bg-slate-800 h-full">
-                <div className="absolute inset-0 bg-gradient-to-br from-orange-500/0 to-orange-500/0 group-hover:from-orange-500/5 group-hover:to-orange-500/10 transition-all duration-500"></div>
+                <div className="absolute inset-0 bg-linear-to-br from-orange-500/0 to-orange-500/0 group-hover:from-orange-500/5 group-hover:to-orange-500/10 transition-all duration-500"></div>
                 <CardContent className="relative p-6">
-                  <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-950/30 dark:to-orange-900/30 shadow-lg group-hover:shadow-orange-500/50 group-hover:scale-110 transition-all duration-500">
+                  <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-linear-to-br from-orange-100 to-orange-200 dark:from-orange-950/30 dark:to-orange-900/30 shadow-lg group-hover:shadow-orange-500/50 group-hover:scale-110 transition-all duration-500">
                     <Clock className="h-7 w-7 text-orange-500 dark:text-orange-400 group-hover:rotate-12 transition-transform duration-500" />
                   </div>
                   <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-white group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors">Respuesta Rápida</h3>
@@ -245,9 +276,9 @@ export default function HomePage() {
               className="group"
             >
               <Card className="relative overflow-hidden border-2 border-slate-200 dark:border-slate-700 hover:border-orange-500 dark:hover:border-orange-400 transition-all duration-500 hover:shadow-2xl hover:shadow-orange-500/20 dark:bg-slate-800 h-full">
-                <div className="absolute inset-0 bg-gradient-to-br from-orange-500/0 to-orange-500/0 group-hover:from-orange-500/5 group-hover:to-orange-500/10 transition-all duration-500"></div>
+                <div className="absolute inset-0 bg-linear-to-br from-orange-500/0 to-orange-500/0 group-hover:from-orange-500/5 group-hover:to-orange-500/10 transition-all duration-500"></div>
                 <CardContent className="relative p-6">
-                  <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-950/30 dark:to-orange-900/30 shadow-lg group-hover:shadow-orange-500/50 group-hover:scale-110 transition-all duration-500">
+                  <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-linear-to-br from-orange-100 to-orange-200 dark:from-orange-950/30 dark:to-orange-900/30 shadow-lg group-hover:shadow-orange-500/50 group-hover:scale-110 transition-all duration-500">
                     <Star className="h-7 w-7 text-orange-500 dark:text-orange-400 group-hover:rotate-12 transition-transform duration-500" />
                   </div>
                   <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-white group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors">Alta Calidad</h3>
@@ -285,7 +316,7 @@ export default function HomePage() {
               <div className="flex flex-col items-center text-center">
                 <div className="relative mb-6">
                   <div className="absolute inset-0 bg-orange-500 rounded-full blur-xl opacity-30 group-hover:opacity-50 transition-opacity animate-pulse"></div>
-                  <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-3xl font-bold text-white shadow-2xl shadow-orange-500/50 group-hover:scale-110 transition-transform duration-300">
+                  <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br from-orange-500 to-orange-600 text-3xl font-bold text-white shadow-2xl shadow-orange-500/50 group-hover:scale-110 transition-transform duration-300">
                     1
                   </div>
                 </div>
@@ -309,7 +340,7 @@ export default function HomePage() {
               <div className="flex flex-col items-center text-center">
                 <div className="relative mb-6">
                   <div className="absolute inset-0 bg-orange-500 rounded-full blur-xl opacity-30 group-hover:opacity-50 transition-opacity animate-pulse animation-delay-1000"></div>
-                  <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-3xl font-bold text-white shadow-2xl shadow-orange-500/50 group-hover:scale-110 transition-transform duration-300">
+                  <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br from-orange-500 to-orange-600 text-3xl font-bold text-white shadow-2xl shadow-orange-500/50 group-hover:scale-110 transition-transform duration-300">
                     2
                   </div>
                 </div>
@@ -333,7 +364,7 @@ export default function HomePage() {
               <div className="flex flex-col items-center text-center">
                 <div className="relative mb-6">
                   <div className="absolute inset-0 bg-orange-500 rounded-full blur-xl opacity-30 group-hover:opacity-50 transition-opacity animate-pulse animation-delay-2000"></div>
-                  <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-3xl font-bold text-white shadow-2xl shadow-orange-500/50 group-hover:scale-110 transition-transform duration-300">
+                  <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-linear-to-br from-orange-500 to-orange-600 text-3xl font-bold text-white shadow-2xl shadow-orange-500/50 group-hover:scale-110 transition-transform duration-300">
                     3
                   </div>
                 </div>
@@ -346,13 +377,13 @@ export default function HomePage() {
           </div>
 
           <div className="mt-12 text-center">
-            <Button asChild size="lg" className="group relative overflow-hidden bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-2xl shadow-orange-500/50 hover:shadow-orange-500/60 transition-all hover:scale-105">
+            <Button asChild size="lg" className="group relative overflow-hidden bg-linear-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-2xl shadow-orange-500/50 hover:shadow-orange-500/60 transition-all hover:scale-105">
               <Link href="/register">
                 <span className="relative z-10 flex items-center">
                   Comenzar Ahora
                   <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                 </span>
-                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/30 to-transparent"></div>
+                <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-1000 bg-linear-to-r from-transparent via-white/30 to-transparent"></div>
               </Link>
             </Button>
           </div>
@@ -412,7 +443,7 @@ export default function HomePage() {
       </section>
 
       {/* Testimonials Section */}
-      <section className="bg-gradient-to-br from-slate-50 to-orange-50 dark:from-slate-950 dark:to-slate-900 py-16 sm:py-24">
+      <section className="bg-linear-to-br from-slate-50 to-orange-50 dark:from-slate-950 dark:to-slate-900 py-16 sm:py-24">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-slate-900 dark:text-white sm:text-4xl">
@@ -454,7 +485,7 @@ export default function HomePage() {
                 className="group"
               >
                 <Card className="relative overflow-hidden h-full dark:bg-slate-800 dark:border-slate-700 border-2 border-slate-200 hover:border-orange-400 dark:hover:border-orange-500 transition-all duration-500 hover:shadow-2xl hover:shadow-orange-500/20">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-500/10 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-linear-to-br from-orange-500/10 to-transparent rounded-bl-full opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                   <CardContent className="relative p-8">
                     <div className="mb-6 flex gap-1">
                       {[...Array(testimonial.rating)].map((_, i) => (
@@ -469,7 +500,7 @@ export default function HomePage() {
                     <div className="flex items-center gap-4">
                       <div className="relative">
                         <div className="absolute inset-0 bg-orange-500 rounded-full blur-md opacity-0 group-hover:opacity-50 transition-opacity"></div>
-                        <div className="relative h-12 w-12 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 shadow-lg group-hover:scale-110 transition-transform"></div>
+                        <div className="relative h-12 w-12 rounded-full bg-linear-to-br from-orange-400 to-orange-600 shadow-lg group-hover:scale-110 transition-transform"></div>
                       </div>
                       <div>
                         <div className="font-bold text-slate-900 dark:text-white group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors">{testimonial.name}</div>
@@ -485,7 +516,7 @@ export default function HomePage() {
       </section>
 
       {/* CTA Section */}
-      <section className="relative overflow-hidden bg-gradient-to-r from-orange-500 via-orange-600 to-orange-500 py-20 sm:py-28">
+      <section className="relative overflow-hidden bg-linear-to-r from-orange-500 via-orange-600 to-orange-500 py-20 sm:py-28">
         {/* Animated Background */}
         <div className="absolute inset-0">
           <div className="absolute top-0 left-1/4 w-96 h-96 bg-orange-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
@@ -518,7 +549,7 @@ export default function HomePage() {
                     Registrarse Gratis
                     <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
                   </span>
-                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-gradient-to-r from-transparent via-orange-100 to-transparent"></div>
+                  <div className="absolute inset-0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 bg-linear-to-r from-transparent via-orange-100 to-transparent"></div>
                 </Link>
               </Button>
               <Button

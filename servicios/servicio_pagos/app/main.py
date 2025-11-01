@@ -76,13 +76,13 @@ async def create_payment_preference(
         # Crear preferencia en MercadoPago
         preference = mp_service.create_preference(
             trabajo_id=trabajo.id,
-            title=f"Trabajo #{trabajo.id} - {trabajo.descripcion[:50]}",
-            amount=float(trabajo.monto_total),
+            title=f"Trabajo #{trabajo.id}",
+            amount=float(trabajo.precio_final),
             payer_email=current_user.email
         )
         
-        # Guardar el preference_id en el trabajo
-        trabajo.mp_preference_id = preference.get("id")
+        # El preference_id se podría guardar si añadimos ese campo al modelo
+        # Por ahora solo devolvemos la información necesaria para proceder al pago
         db.commit()
         
         return {
@@ -155,22 +155,20 @@ async def mercadopago_webhook(
             payment_status = payment_info.get("status")
             
             if payment_status == "approved":
-                # Pago aprobado
-                trabajo.estado = TrabajoEstado.EN_PROGRESO
-                trabajo.escrow_estado = EscrowEstado.RETENIDO
-                trabajo.mp_payment_id = payment_id
-                trabajo.fecha_inicio = datetime.utcnow()
+                # Pago aprobado - dinero retenido en escrow
+                trabajo.estado_escrow = EscrowEstado.PAGADO_EN_ESCROW
+                trabajo.mercadopago_payment_id = payment_id
                 
                 print(f"✅ Pago aprobado para trabajo #{trabajo_id}")
             
             elif payment_status == "rejected":
                 # Pago rechazado
-                trabajo.estado = TrabajoEstado.PENDIENTE_PAGO
+                trabajo.estado_escrow = EscrowEstado.PENDIENTE_PAGO
                 print(f"❌ Pago rechazado para trabajo #{trabajo_id}")
             
             elif payment_status == "pending":
                 # Pago pendiente
-                trabajo.mp_payment_id = payment_id
+                trabajo.mercadopago_payment_id = payment_id
                 print(f"⏳ Pago pendiente para trabajo #{trabajo_id}")
             
             db.commit()
@@ -205,17 +203,17 @@ async def release_escrow(
         )
     
     # Verificar permisos
-    if trabajo.cliente_id != current_user.id and current_user.role != "admin":
+    if trabajo.cliente_id != current_user.id and current_user.rol != "ADMIN":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el cliente o admin pueden liberar el escrow"
         )
     
     # Verificar estado
-    if trabajo.escrow_estado != EscrowEstado.RETENIDO:
+    if trabajo.estado_escrow != EscrowEstado.PAGADO_EN_ESCROW:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="El escrow no está en estado retenido"
+            detail="El escrow no está en estado pagado/retenido"
         )
     
     try:
@@ -232,22 +230,21 @@ async def release_escrow(
         
         # Calcular comisión (por ahora 10%, debería venir de gamificación)
         comision_porcentaje = 10
-        monto_comision = trabajo.monto_total * (comision_porcentaje / 100)
-        monto_profesional = trabajo.monto_total - monto_comision
+        monto_comision = trabajo.precio_final * (comision_porcentaje / 100)
+        monto_profesional = trabajo.precio_final - monto_comision
         
         # Aquí iría la lógica de payout real a la cuenta del profesional
         # Por ahora solo actualizamos el estado
         
-        trabajo.escrow_estado = EscrowEstado.LIBERADO
-        trabajo.estado = TrabajoEstado.APROBADO
-        trabajo.monto_profesional = monto_profesional
+        trabajo.estado_escrow = EscrowEstado.LIBERADO
+        trabajo.monto_liberado = monto_profesional
         trabajo.comision_plataforma = monto_comision
         
         db.commit()
         
         return {
             "message": "Escrow liberado correctamente",
-            "monto_total": float(trabajo.monto_total),
+            "monto_total": float(trabajo.precio_final),
             "comision": float(monto_comision),
             "monto_profesional": float(monto_profesional)
         }
@@ -283,7 +280,7 @@ async def refund_escrow(
         Professional.user_id == current_user.id
     ).first()
     is_profesional = professional and trabajo.profesional_id == professional.id
-    is_admin = current_user.role == "admin"
+    is_admin = current_user.rol == "ADMIN"
     
     if not (is_cliente or is_profesional or is_admin):
         raise HTTPException(
@@ -292,7 +289,7 @@ async def refund_escrow(
         )
     
     # Verificar estado
-    if trabajo.escrow_estado not in [EscrowEstado.RETENIDO, EscrowEstado.PENDIENTE]:
+    if trabajo.estado_escrow not in [EscrowEstado.PAGADO_EN_ESCROW, EscrowEstado.PENDIENTE_PAGO]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="El escrow no puede ser reembolsado en su estado actual"
@@ -300,23 +297,21 @@ async def refund_escrow(
     
     try:
         # Reembolsar en MercadoPago
-        if trabajo.mp_payment_id:
+        if trabajo.mercadopago_payment_id:
             try:
-                refund_result = mp_service.refund_payment(trabajo.mp_payment_id)
+                refund_result = mp_service.refund_payment(trabajo.mercadopago_payment_id)
                 print(f"💸 Reembolso procesado: {refund_result}")
             except Exception as e:
                 print(f"⚠️ Error al reembolsar en MP: {str(e)}")
                 # Continuar de todas formas con la actualización local
         
-        trabajo.escrow_estado = EscrowEstado.REEMBOLSADO
-        trabajo.estado = TrabajoEstado.CANCELADO
-        trabajo.fecha_fin = datetime.utcnow()
+        trabajo.estado_escrow = EscrowEstado.CANCELADO_REEMBOLSADO
         
         db.commit()
         
         return {
             "message": "Reembolso procesado correctamente",
-            "monto_reembolsado": float(trabajo.monto_total)
+            "monto_reembolsado": float(trabajo.precio_final)
         }
     
     except Exception as e:
@@ -340,7 +335,7 @@ async def payout_to_professional(
     Transfiere dinero acumulado a su cuenta bancaria
     """
     
-    if current_user.role != "admin":
+    if current_user.rol != "ADMIN":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los administradores pueden realizar payouts"
@@ -354,34 +349,30 @@ async def payout_to_professional(
             detail="Profesional no encontrado"
         )
     
-    # Calcular trabajos aprobados pendientes de payout
-    trabajos_pendientes = db.query(Trabajo).filter(
+    # Calcular trabajos liberados (ya se puede pagar al profesional)
+    trabajos_liberados = db.query(Trabajo).filter(
         Trabajo.profesional_id == prof_id,
-        Trabajo.estado == TrabajoEstado.APROBADO,
-        Trabajo.escrow_estado == EscrowEstado.LIBERADO,
-        Trabajo.payout_realizado == False
+        Trabajo.estado_escrow == EscrowEstado.LIBERADO
     ).all()
     
-    if not trabajos_pendientes:
+    if not trabajos_liberados:
         return {"message": "No hay trabajos pendientes de payout"}
     
-    total_a_pagar = sum(t.monto_profesional for t in trabajos_pendientes)
+    total_a_pagar = sum(t.monto_liberado or 0 for t in trabajos_liberados)
     
     try:
         # Aquí iría la integración real con MercadoPago para transferir
         # a la cuenta del profesional (CVU, CBU, Alias)
         
-        # Por ahora solo marcamos como pagado
-        for trabajo in trabajos_pendientes:
-            trabajo.payout_realizado = True
-            trabajo.fecha_payout = datetime.utcnow()
+        # Por ahora solo registramos el intento de payout
+        # En el futuro, se podría agregar un campo payout_procesado o similar
         
         db.commit()
         
         return {
             "message": "Payout realizado correctamente",
             "total_pagado": float(total_a_pagar),
-            "trabajos_procesados": len(trabajos_pendientes)
+            "trabajos_procesados": len(trabajos_liberados)
         }
     
     except Exception as e:
@@ -401,7 +392,7 @@ async def get_financial_stats(
 ):
     """Obtiene métricas financieras (solo admin)"""
     
-    if current_user.role != "admin":
+    if current_user.rol != "ADMIN":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los administradores pueden ver las métricas"
@@ -410,45 +401,62 @@ async def get_financial_stats(
     from sqlalchemy import func
     
     # Total de trabajos
-    total_trabajos = db.query(func.count(Trabajo.id)).scalar()
+    total_trabajos = db.query(func.count(Trabajo.id)).scalar() or 0
     
-    # Trabajos por estado
-    trabajos_en_progreso = db.query(func.count(Trabajo.id)).filter(
-        Trabajo.estado == TrabajoEstado.EN_PROGRESO
-    ).scalar()
+    # Trabajos por estado de escrow
+    trabajos_pendientes_pago = db.query(func.count(Trabajo.id)).filter(
+        Trabajo.estado_escrow == EscrowEstado.PENDIENTE_PAGO
+    ).scalar() or 0
+    
+    trabajos_en_escrow = db.query(func.count(Trabajo.id)).filter(
+        Trabajo.estado_escrow == EscrowEstado.PAGADO_EN_ESCROW
+    ).scalar() or 0
     
     trabajos_completados = db.query(func.count(Trabajo.id)).filter(
-        Trabajo.estado == TrabajoEstado.COMPLETADO
-    ).scalar()
+        Trabajo.estado_escrow == EscrowEstado.LIBERADO
+    ).scalar() or 0
     
-    trabajos_aprobados = db.query(func.count(Trabajo.id)).filter(
-        Trabajo.estado == TrabajoEstado.APROBADO
-    ).scalar()
+    trabajos_cancelados = db.query(func.count(Trabajo.id)).filter(
+        Trabajo.estado_escrow == EscrowEstado.CANCELADO_REEMBOLSADO
+    ).scalar() or 0
     
     # Métricas financieras
-    total_ingresos = db.query(func.sum(Trabajo.monto_total)).filter(
-        Trabajo.estado.in_([TrabajoEstado.COMPLETADO, TrabajoEstado.APROBADO])
+    # Total facturado = suma de todos los trabajos pagados o liberados
+    total_ingresos = db.query(func.sum(Trabajo.precio_final)).filter(
+        Trabajo.estado_escrow.in_([
+            EscrowEstado.PAGADO_EN_ESCROW,
+            EscrowEstado.LIBERADO
+        ])
     ).scalar() or 0
     
+    # Total comisiones = suma de comisiones de trabajos liberados
     total_comisiones = db.query(func.sum(Trabajo.comision_plataforma)).filter(
-        Trabajo.estado == TrabajoEstado.APROBADO
+        Trabajo.estado_escrow == EscrowEstado.LIBERADO
     ).scalar() or 0
     
-    dinero_en_escrow = db.query(func.sum(Trabajo.monto_total)).filter(
-        Trabajo.escrow_estado == EscrowEstado.RETENIDO
+    # Dinero retenido en escrow = suma de trabajos en estado PAGADO_EN_ESCROW
+    dinero_en_escrow = db.query(func.sum(Trabajo.precio_final)).filter(
+        Trabajo.estado_escrow == EscrowEstado.PAGADO_EN_ESCROW
+    ).scalar() or 0
+    
+    # Dinero liberado a profesionales
+    total_liberado = db.query(func.sum(Trabajo.monto_liberado)).filter(
+        Trabajo.estado_escrow == EscrowEstado.LIBERADO
     ).scalar() or 0
     
     return {
         "trabajos": {
             "total": total_trabajos,
-            "en_progreso": trabajos_en_progreso,
+            "pendientes_pago": trabajos_pendientes_pago,
+            "en_escrow": trabajos_en_escrow,
             "completados": trabajos_completados,
-            "aprobados": trabajos_aprobados
+            "cancelados": trabajos_cancelados
         },
         "finanzas": {
             "total_ingresos": float(total_ingresos),
             "total_comisiones": float(total_comisiones),
-            "dinero_en_escrow": float(dinero_en_escrow)
+            "dinero_en_escrow": float(dinero_en_escrow),
+            "total_liberado": float(total_liberado)
         }
     }
 

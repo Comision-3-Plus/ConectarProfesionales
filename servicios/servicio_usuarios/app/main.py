@@ -170,6 +170,248 @@ def change_password(
         "success": True
     }
 
+# ============================================================================
+# ADMIN - GESTIÓN DE USUARIOS
+# ============================================================================
+
+@app.get("/admin/users")
+def list_all_users(
+    page: int = 1,
+    limit: int = 10,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Lista todos los usuarios de forma paginada (solo admin)
+    """
+    from shared.models.enums import UserRole
+    
+    # Verificar que sea admin
+    if current_user.rol != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los administradores pueden listar usuarios"
+        )
+    
+    # Calcular offset
+    offset = (page - 1) * limit
+    
+    # Obtener total de usuarios
+    total = db.query(Usuario).count()
+    
+    # Obtener usuarios paginados
+    users = db.query(Usuario).offset(offset).limit(limit).all()
+    
+    # Calcular total de páginas
+    total_pages = (total + limit - 1) // limit
+    
+    return {
+        "users": [
+            {
+                "id": str(u.id),
+                "email": u.email,
+                "nombre": u.nombre,
+                "apellido": u.apellido,
+                "rol": u.rol.value,
+                "is_active": u.is_active,
+                "fecha_creacion": u.fecha_creacion.isoformat() if u.fecha_creacion else None
+            }
+            for u in users
+        ],
+        "total": total,
+        "page": page,
+        "limit": limit,
+        "totalPages": total_pages
+    }
+
+@app.get("/admin/users/search")
+def search_users(
+    email: str,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Busca usuarios por email (solo admin)
+    """
+    from shared.models.enums import UserRole
+    
+    # Verificar que sea admin
+    if current_user.rol != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los administradores pueden buscar usuarios"
+        )
+    
+    # Buscar usuarios por email (búsqueda parcial)
+    users = db.query(Usuario).filter(
+        Usuario.email.ilike(f"%{email}%")
+    ).limit(10).all()
+    
+    return [
+        {
+            "id": str(u.id),
+            "email": u.email,
+            "nombre": u.nombre,
+            "apellido": u.apellido,
+            "rol": u.rol.value,
+            "is_active": u.is_active
+        }
+        for u in users
+    ]
+
+@app.post("/admin/users/{user_id}/ban")
+def ban_user(
+    user_id: str,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Banea (desactiva) un usuario (solo admin)
+    """
+    from shared.models.enums import UserRole
+    from uuid import UUID
+    
+    # Verificar que sea admin
+    if current_user.rol != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los administradores pueden banear usuarios"
+        )
+    
+    # Buscar usuario
+    try:
+        user_uuid = UUID(user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ID de usuario inválido"
+        )
+    
+    user = db.query(Usuario).filter(Usuario.id == user_uuid).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado"
+        )
+    
+    # No permitir banear a otros admins
+    if user.rol == UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No se puede banear a un administrador"
+        )
+    
+    # Banear usuario
+    user.is_active = False
+    db.commit()
+    
+    return {
+        "message": "Usuario baneado exitosamente",
+        "user_id": user_id,
+        "email": user.email
+    }
+
+@app.post("/admin/users/{user_id}/unban")
+def unban_user(
+    user_id: str,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Desbanea (reactiva) un usuario (solo admin)
+    """
+    from shared.models.enums import UserRole
+    from uuid import UUID
+    
+    # Verificar que sea admin
+    if current_user.rol != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los administradores pueden desbanear usuarios"
+        )
+    
+    # Buscar usuario
+    try:
+        user_uuid = UUID(user_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="ID de usuario inválido"
+        )
+    
+    user = db.query(Usuario).filter(Usuario.id == user_uuid).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado"
+        )
+    
+    # Desbanear usuario
+    user.is_active = True
+    db.commit()
+    
+    return {
+        "message": "Usuario desbaneado exitosamente",
+        "user_id": user_id,
+        "email": user.email
+    }
+
+# ============================================================================
+# ADMIN - MÉTRICAS DE USUARIOS
+# ============================================================================
+
+@app.get("/admin/metrics/users")
+def get_user_metrics(
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Obtiene métricas de usuarios (solo admin)
+    Devuelve conteos de clientes, profesionales y estados de KYC
+    """
+    from shared.models.enums import UserRole, VerificationStatus
+    from shared.models.professional import Profesional
+    from sqlalchemy import func
+    
+    # Verificar que sea admin
+    if current_user.rol != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los administradores pueden ver las métricas"
+        )
+    
+    # Contar clientes
+    total_clientes = db.query(func.count(Usuario.id)).filter(
+        Usuario.rol == UserRole.CLIENTE
+    ).scalar() or 0
+    
+    # Contar profesionales
+    total_profesionales = db.query(func.count(Usuario.id)).filter(
+        Usuario.rol == UserRole.PROFESIONAL
+    ).scalar() or 0
+    
+    # Contar profesionales pendientes de KYC
+    total_pro_pendientes_kyc = db.query(func.count(Profesional.id)).filter(
+        Profesional.estado_verificacion.in_([
+            VerificationStatus.PENDIENTE,
+            VerificationStatus.EN_REVISION
+        ])
+    ).scalar() or 0
+    
+    # Contar profesionales aprobados
+    total_pro_aprobados = db.query(func.count(Profesional.id)).filter(
+        Profesional.estado_verificacion == VerificationStatus.APROBADO
+    ).scalar() or 0
+    
+    return {
+        "total_clientes": total_clientes,
+        "total_profesionales": total_profesionales,
+        "total_pro_pendientes_kyc": total_pro_pendientes_kyc,
+        "total_pro_aprobados": total_pro_aprobados
+    }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8002)

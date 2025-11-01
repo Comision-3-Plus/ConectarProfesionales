@@ -150,12 +150,25 @@ export default function AdminDashboardPage() {
     );
   }
 
+  // Fallbacks seguros en caso de que las métricas aún no estén disponibles
+  const safeUserMetrics = userMetrics ?? {
+    total_clientes: 0,
+    total_profesionales: 0,
+    total_pro_pendientes_kyc: 0,
+    total_pro_aprobados: 0,
+  };
+  const safeFinancialMetrics = financialMetrics ?? {
+    total_facturado: 0,
+    comision_total: 0,
+    trabajos_completados: 0,
+  };
+
   const totalUsuarios =
-    userMetrics!.total_profesionales + userMetrics!.total_clientes;
+    safeUserMetrics.total_profesionales + safeUserMetrics.total_clientes;
   const montoPromedio =
-    financialMetrics!.trabajos_completados > 0
-      ? financialMetrics!.total_facturado /
-        financialMetrics!.trabajos_completados
+    safeFinancialMetrics.trabajos_completados > 0
+      ? safeFinancialMetrics.total_facturado /
+        safeFinancialMetrics.trabajos_completados
       : 0;
 
   return (
@@ -195,7 +208,7 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-green-600 dark:text-green-400">
-                {formatCurrency(financialMetrics!.comision_total)}
+                {formatCurrency(safeFinancialMetrics.comision_total)}
               </div>
               <div className="flex items-center mt-2 text-xs text-slate-500 dark:text-slate-400">
                 <ArrowUpRight className="h-3 w-3 text-green-500 mr-1" />
@@ -218,7 +231,7 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                {formatCurrency(financialMetrics!.total_facturado)}
+                {formatCurrency(safeFinancialMetrics.total_facturado)}
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                 Facturación total de trabajos
@@ -237,7 +250,7 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
-                {formatNumber(financialMetrics!.trabajos_completados)}
+                {formatNumber(safeFinancialMetrics.trabajos_completados)}
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                 Trabajos liberados exitosamente
@@ -302,10 +315,10 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">
-                {formatNumber(userMetrics!.total_profesionales)}
+                {formatNumber(safeUserMetrics.total_profesionales)}
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                {userMetrics!.total_pro_aprobados} aprobados
+                {safeUserMetrics.total_pro_aprobados} aprobados
               </p>
             </CardContent>
           </Card>
@@ -321,7 +334,7 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
-                {formatNumber(userMetrics!.total_clientes)}
+                {formatNumber(safeUserMetrics.total_clientes)}
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                 Clientes activos
@@ -340,7 +353,7 @@ export default function AdminDashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
-                {formatNumber(userMetrics!.total_pro_pendientes_kyc)}
+                {formatNumber(safeUserMetrics.total_pro_pendientes_kyc)}
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
                 Esperando revisión
