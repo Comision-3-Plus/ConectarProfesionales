@@ -2,8 +2,9 @@
 
 > **Plataforma de intermediación entre profesionales y clientes con sistema de pagos, geolocalización, chat en tiempo real y gamificación.**
 
-**Backend:** API RESTful con **FastAPI**, **PostgreSQL + PostGIS**, **Firebase** y **MercadoPago**  
-**Frontend:** App con **Next.js 15**, **React 19**, **TypeScript** y **shadcn/ui**
+**Arquitectura:** **Microservicios** con API Gateway  
+**Backend:** **FastAPI**, **PostgreSQL + PostGIS**, **Redis**, **Firebase** y **MercadoPago**  
+**Frontend:** **Next.js 15**, **React 19**, **TypeScript** y **shadcn/ui**
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.104-009688?style=flat&logo=fastapi)](https://fastapi.tiangolo.com/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?style=flat&logo=postgresql)](https://www.postgresql.org/)
@@ -11,6 +12,7 @@
 [![Next.js](https://img.shields.io/badge/Next.js-15-000000?style=flat&logo=next.js)](https://nextjs.org/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?style=flat&logo=docker)](https://www.docker.com/)
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?style=flat&logo=python)](https://www.python.org/)
+[![Microservices](https://img.shields.io/badge/Architecture-Microservices-FF6B6B?style=flat)](./MIGRACION_MICROSERVICIOS.md)
 
 ---
 
@@ -18,6 +20,7 @@
 
 ### 🚀 Inicio Rápido
 - **[RESUMEN_RAPIDO.md](./RESUMEN_RAPIDO.md)** - Empieza aquí (5 min)
+- **[MIGRACION_MICROSERVICIOS.md](./MIGRACION_MICROSERVICIOS.md)** - 🆕 Arquitectura de microservicios
 - **[INDICE_DOCUMENTACION.md](./INDICE_DOCUMENTACION.md)** - Índice maestro de toda la documentación
 
 ### 📋 Para Desarrolladores
@@ -30,9 +33,24 @@
 
 ---
 
-## ✨ Estado del Proyecto (24 Oct 2025)
+## ✨ Estado del Proyecto (Enero 2025)
 
-### Backend ✅ 100%
+### 🏗️ Arquitectura: Microservicios
+**Estado:** ✅ Migración en progreso
+
+| Servicio | Puerto | Estado | Descripción |
+|----------|--------|--------|-------------|
+| **Puerta de Enlace** | 8000 | ✅ Completo | API Gateway |
+| **Autenticación** | 8001 | ✅ Completo | JWT, Register, Login |
+| **Usuarios** | 8002 | ✅ Completo | Perfiles, Avatares |
+| **Profesionales** | 8003 | 🔄 Pendiente | Búsqueda, KYC, Portfolio |
+| **Chat y Ofertas** | 8004 | 🔄 Pendiente | Chat, Ofertas, Trabajos |
+| **Pagos** | 8005 | 🔄 Pendiente | MercadoPago, Escrow |
+| **Notificaciones** | 8006 | 🔄 Pendiente | Emails, Gamificación |
+
+📖 Ver: [MIGRACION_MICROSERVICIOS.md](./MIGRACION_MICROSERVICIOS.md)
+
+### Backend ✅ 100% (En proceso de migración)
 | Módulo | Estado | Descripción |
 |--------|--------|-------------|
 | **Módulo 1** | ✅ **COMPLETO** | Autenticación JWT, KYC, RBAC |
@@ -219,25 +237,41 @@ Copy-Item .env.example .env
 # Editar .env con tus credenciales si es necesario
 ```
 
-### 2️⃣ Levantar el Stack
+### 2️⃣ Levantar los Microservicios
 
 ```powershell
+# Levantar todos los microservicios
 docker-compose up -d --build
 ```
 
 **Servicios levantados:**
-- 🌐 **API FastAPI**: http://localhost:8004
-- 🗄️ **PostgreSQL + PostGIS**: localhost:5432
-- 📚 **Documentación Swagger**: http://localhost:8004/docs
-- 📖 **ReDoc**: http://localhost:8004/redoc
+- 🌐 **API Gateway**: http://localhost:8000
+- � **Servicio Autenticación**: http://localhost:8001
+- 👤 **Servicio Usuarios**: http://localhost:8002
+- �‍💼 **Servicio Profesionales**: http://localhost:8003
+- 💬 **Servicio Chat y Ofertas**: http://localhost:8004
+- 💰 **Servicio Pagos**: http://localhost:8005
+- � **Servicio Notificaciones**: http://localhost:8006
+- 📚 **Documentación**: http://localhost:8000/docs
+- 🗄️ **PostgreSQL**: localhost:5432
+- 🔴 **Redis**: localhost:6379
 
 ### 3️⃣ Aplicar Migraciones
 
 ```powershell
-docker-compose exec api alembic upgrade head
+# Las migraciones se ejecutan desde el directorio shared
+cd servicios/shared
+alembic upgrade head
 ```
 
-### 4️⃣ Crear Usuario Admin (Requerido para tests)
+### 4️⃣ Verificar que todos los servicios estén funcionando
+
+```powershell
+# Health check de todos los microservicios
+curl http://localhost:8000/health
+```
+
+### 5️⃣ Crear Usuario Admin (Requerido para tests)
 
 ```powershell
 docker-compose exec api python -c "from app.core.database import SessionLocal; from app.models.user import Usuario; from app.models.enums import UserRole; from app.core.security import get_password_hash; db=SessionLocal(); u=Usuario(email='admin@example.com', password_hash=get_password_hash('Admin1234!'), nombre='Admin', apellido='User', rol=UserRole.ADMIN, is_active=True); db.add(u); db.commit(); print('Admin created:', u.id)"

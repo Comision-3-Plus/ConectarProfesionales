@@ -1,68 +1,165 @@
+version: '3.8'
+
 services:
-  # Base de datos PostgreSQL - COMENTADO: usando Supabase remoto en su lugar
-  # Si quieres PostgreSQL local, descomenta esto y cambia POSTGRES_HOST=db en .env
-  # db:
-  #   image: postgis/postgis:15-3.3
-  #   container_name: marketplace_db
-  #   restart: unless-stopped
-  #   environment:
-  #     POSTGRES_USER: ${POSTGRES_USER:-postgres}
-  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-  #     POSTGRES_DB: ${POSTGRES_DB:-postgres}
-  #   ports:
-  #     - "5432:5432"
-  #   volumes:
-  #     - postgres_data:/var/lib/postgresql/data
-  #     - ./init.sql:/docker-entrypoint-initdb.d/init.sql
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
-  #     interval: 5s
-  #     timeout: 5s
-  #     retries: 5
-
-  # Servicio de la API FastAPI (conectado a Supabase)
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: marketplace_api
+  # ==========================================
+  # PUERTA DE ENLACE (API Gateway)
+  # ==========================================
+  puerta-enlace:
+    build: ./servicios/puerta_enlace
+    container_name: puerta_enlace
     restart: unless-stopped
-    dns:
-      - 8.8.8.8
-      - 8.8.4.4
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
-      POSTGRES_DB: ${POSTGRES_DB:-postgres}
-      POSTGRES_HOST: ${POSTGRES_HOST:-localhost}
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
-      APP_NAME: ${APP_NAME:-Marketplace}
-      APP_VERSION: ${APP_VERSION:-0.0.0}
-      DEBUG: ${DEBUG:-False}
-      API_V1_PREFIX: ${API_V1_PREFIX:-/api/v1}
-      SECRET_KEY: ${SECRET_KEY:-changeme}
-      WEBHOOK_API_KEY: ${WEBHOOK_API_KEY:-}
-      SUPABASE_URL: ${SUPABASE_URL:-}
-      SUPABASE_KEY: ${SUPABASE_KEY:-}
-      MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN:-}
-      FIREBASE_CREDENTIALS_PATH: ${FIREBASE_CREDENTIALS_PATH:-}
     ports:
-      - "8004:8000"
-    volumes:
-      - ./app:/code/app
-      - ./migrations:/code/migrations
-      - ./alembic.ini:/code/alembic.ini
-      - ./tests:/code/tests
-      - ./pytest.ini:/code/pytest.ini
-      - ./requirements-dev.txt:/code/requirements-dev.txt
-      - persistent_uploads:/app/uploads
-    # depends_on: db removed - using Supabase remote database instead
-    command: >
-      sh -c "sleep 5 &&
-             alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+      - "8000:8000"
+    environment:
+      - SERVICIO_AUTENTICACION_URL=http://servicio-autenticacion:8001
+      - SERVICIO_USUARIOS_URL=http://servicio-usuarios:8002
+      - SERVICIO_PROFESIONALES_URL=http://servicio-profesionales:8003
+      - SERVICIO_CHAT_URL=http://servicio-chat-ofertas:8004
+      - SERVICIO_PAGOS_URL=http://servicio-pagos:8005
+      - SERVICIO_NOTIFICACIONES_URL=http://servicio-notificaciones:8006
+    depends_on:
+      - servicio-autenticacion
+      - servicio-usuarios
+      - servicio-profesionales
+      - servicio-chat-ofertas
+      - servicio-pagos
+    networks:
+      - microservicios_network
 
-  # Servicio del Frontend Next.js
+  # ==========================================
+  # SERVICIO DE AUTENTICACIÓN
+  # ==========================================
+  servicio-autenticacion:
+    build:
+      context: ./servicios
+      dockerfile: servicio_autenticacion/Dockerfile
+    container_name: servicio_autenticacion
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=require
+      - SECRET_KEY=${SECRET_KEY}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=60
+    networks:
+      - microservicios_network
+
+  # ==========================================
+  # SERVICIO DE USUARIOS
+  # ==========================================
+  servicio-usuarios:
+    build:
+      context: ./servicios
+      dockerfile: servicio_usuarios/Dockerfile
+    container_name: servicio_usuarios
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=require
+      - SECRET_KEY=${SECRET_KEY}
+    volumes:
+      - avatars_uploads:/app/uploads/avatars
+    networks:
+      - microservicios_network
+
+  # ==========================================
+  # SERVICIO DE PROFESIONALES
+  # ==========================================
+  servicio-profesionales:
+    build:
+      context: ./servicios
+      dockerfile: servicio_profesionales/Dockerfile
+    container_name: servicio_profesionales
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=require
+      - SECRET_KEY=${SECRET_KEY}
+    volumes:
+      - portfolio_uploads:/app/uploads/portfolio
+    networks:
+      - microservicios_network
+
+  # ==========================================
+  # SERVICIO DE CHAT Y OFERTAS
+  # ==========================================
+  servicio-chat-ofertas:
+    build:
+      context: ./servicios
+      dockerfile: servicio_chat_ofertas/Dockerfile
+    container_name: servicio_chat_ofertas
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=require
+      - SECRET_KEY=${SECRET_KEY}
+      - FIREBASE_CREDENTIALS_PATH=${FIREBASE_CREDENTIALS_PATH}
+    networks:
+      - microservicios_network
+
+  # ==========================================
+  # SERVICIO DE PAGOS
+  # ==========================================
+  servicio-pagos:
+    build:
+      context: ./servicios
+      dockerfile: servicio_pagos/Dockerfile
+    container_name: servicio_pagos
+    restart: unless-stopped
+    ports:
+      - "8005:8005"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=require
+      - SECRET_KEY=${SECRET_KEY}
+      - MERCADOPAGO_ACCESS_TOKEN=${MERCADOPAGO_ACCESS_TOKEN}
+      - MERCADOPAGO_PUBLIC_KEY=${MERCADOPAGO_PUBLIC_KEY}
+      - MP_SUCCESS_URL=${MP_SUCCESS_URL}
+      - MP_FAILURE_URL=${MP_FAILURE_URL}
+      - MP_PENDING_URL=${MP_PENDING_URL}
+      - MP_NOTIFICATION_URL=${MP_NOTIFICATION_URL}
+    networks:
+      - microservicios_network
+
+  # ==========================================
+  # SERVICIO DE NOTIFICACIONES
+  # ==========================================
+  servicio-notificaciones:
+    build:
+      context: ./servicios
+      dockerfile: servicio_notificaciones/Dockerfile
+    container_name: servicio_notificaciones
+    restart: unless-stopped
+    ports:
+      - "8006:8006"
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}?sslmode=require
+      - SECRET_KEY=${SECRET_KEY}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    networks:
+      - microservicios_network
+
+  # ==========================================
+  # REDIS (Cache y Cola de mensajes)
+  # ==========================================
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cache
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - microservicios_network
+
+  # ==========================================
+  # FRONTEND (Next.js)
+  # ==========================================
   frontend:
     build:
       context: ./frontend
@@ -70,7 +167,7 @@ services:
     container_name: marketplace_frontend
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8004
+      NEXT_PUBLIC_API_URL: http://localhost:8000
       NODE_ENV: development
     ports:
       - "3000:3000"
@@ -79,11 +176,24 @@ services:
       - /app/node_modules
       - /app/.next
     depends_on:
-      - api
-    command: npm run dev
+      - puerta-enlace
+    networks:
+      - microservicios_network
 
+# ==========================================
+# VOLÚMENES
+# ==========================================
 volumes:
-  postgres_data:
+  redis_data:
     driver: local
-  persistent_uploads:
+  avatars_uploads:
     driver: local
+  portfolio_uploads:
+    driver: local
+
+# ==========================================
+# REDES
+# ==========================================
+networks:
+  microservicios_network:
+    driver: bridge

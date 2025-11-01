@@ -1,12 +1,13 @@
 /**
- * Cliente API configurado para comunicarse con el backend FastAPI
- * Base URL: http://localhost:8004/api/v1 (configurar en .env)
+ * Cliente API configurado para comunicarse con el API Gateway de microservicios
+ * Base URL: http://localhost:8000/api/v1 (configurar en .env)
  */
 
 import axios, { AxiosInstance, AxiosError } from 'axios';
 
 // Base URL del backend (desde variable de entorno o default)
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8004';
+// NOTA: Ahora apunta al API Gateway (puerto 8000) que enruta a los microservicios
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 const API_V1_PREFIX = '/api/v1';
 
 /**

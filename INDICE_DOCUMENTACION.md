@@ -1,8 +1,8 @@
 # 📚 ÍNDICE DE DOCUMENTACIÓN - ConectarProfesionales
 
-> **Fecha:** 24 de Octubre 2025  
-> **Versión:** 1.0  
-> **Estado del Proyecto:** Backend 100% ✅ | Frontend 60% ⚠️
+> **Fecha:** Enero 2025  
+> **Versión:** 2.0 - Arquitectura de Microservicios  
+> **Estado del Proyecto:** Backend 100% (Migrando a microservicios) ✅ | Frontend 60% ⚠️
 
 ---
 
@@ -10,8 +10,83 @@
 
 ### Para Empezar Ahora
 1. **Lee primero:** [RESUMEN_RAPIDO.md](./RESUMEN_RAPIDO.md) (5 min)
-2. **Revisa errores:** [BUGS_Y_ERRORES.md](./BUGS_Y_ERRORES.md) (10 min)
-3. **Plan de trabajo:** [TAREAS_PENDIENTES_FRONTEND.md](./TAREAS_PENDIENTES_FRONTEND.md) (15 min)
+2. **🆕 Arquitectura:** [MIGRACION_MICROSERVICIOS.md](./MIGRACION_MICROSERVICIOS.md) (10 min)
+3. **Comandos útiles:** [COMANDOS_MICROSERVICIOS.md](./COMANDOS_MICROSERVICIOS.md) (5 min)
+4. **Revisa errores:** [BUGS_Y_ERRORES.md](./BUGS_Y_ERRORES.md) (10 min)
+5. **Plan de trabajo:** [TAREAS_PENDIENTES_FRONTEND.md](./TAREAS_PENDIENTES_FRONTEND.md) (15 min)
+
+---
+
+## 🏗️ ARQUITECTURA Y MICROSERVICIOS
+
+### **MIGRACION_MICROSERVICIOS.md** 🆕 ⭐
+**Propósito:** Documentación completa de la arquitectura de microservicios  
+**Tiempo de lectura:** 10-15 minutos  
+**Ideal para:** Entender la nueva arquitectura, deployment, escalabilidad
+
+**Contenido:**
+- 🏗️ Diagrama de arquitectura completa
+- 📂 Estructura de directorios
+- 🔀 Enrutamiento del API Gateway
+- 🎯 Endpoints migrados por servicio
+- 📊 Health checks y monitoreo
+- 🚀 Guía de deployment
+- 🔐 Seguridad y autenticación
+- 📈 Ventajas vs monolito
+- 🔄 Próximos pasos de migración
+
+**Cuándo usar:**
+- Al trabajar con los microservicios
+- Para entender cómo se comunican los servicios
+- Al agregar nuevos endpoints
+- Para deployment en producción
+- Al escalar servicios específicos
+
+---
+
+### **COMANDOS_MICROSERVICIOS.md** 🆕 🔧
+**Propósito:** Referencia rápida de comandos Docker Compose  
+**Tiempo de lectura:** 5 minutos  
+**Ideal para:** Desarrollo diario, debugging, operaciones
+
+**Contenido:**
+- 🚀 Inicio y detención de servicios
+- 📊 Monitoreo y logs
+- 🔨 Rebuild y restart
+- 🐛 Debugging y troubleshooting
+- 🗄️ Operaciones de base de datos
+- 🔴 Comandos Redis
+- 📝 Testing
+- 🧹 Limpieza de Docker
+- 📦 Deployment
+
+**Cuándo usar:**
+- Desarrollo diario
+- Al necesitar ver logs
+- Para debuggear problemas
+- Al agregar nuevas features
+- Para limpiar Docker
+
+---
+
+### **BACKUP_MONOLITO.md** 🆕 📦
+**Propósito:** Referencia histórica del código del monolito eliminado  
+**Tiempo de lectura:** 10 minutos  
+**Ideal para:** Consulta de endpoints antiguos, migración de código faltante
+
+**Contenido:**
+- 📁 Estructura completa del monolito
+- 🔗 Mapeo de endpoints antiguos
+- 📊 Comparativa antes vs después
+- 🗂️ Archivos Docker eliminados
+- 🔑 Variables de entorno
+- 📚 Dependencias del monolito
+
+**Cuándo usar:**
+- Al buscar un endpoint antiguo
+- Para comparar arquitecturas
+- Al documentar la migración
+- Para entender decisiones históricas
 
 ---
 
