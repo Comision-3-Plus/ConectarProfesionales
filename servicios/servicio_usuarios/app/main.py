@@ -16,12 +16,17 @@ from shared.models.user import Usuario
 from shared.schemas.user import UserRead, UserUpdate, PasswordChange
 from shared.core.security import verify_password, get_password_hash, decode_access_token
 from shared.schemas.token import TokenData
+from shared.middleware.error_handler import add_exception_handlers
+from shared.core.health import create_health_check_routes
 
 app = FastAPI(
     title="Servicio de Usuarios",
     version="1.0.0",
     description="Gestión de perfiles de usuario"
 )
+
+# Agregar exception handlers
+add_exception_handlers(app)
 
 # Configuración de base de datos
 DATABASE_URL = os.getenv(
@@ -58,10 +63,12 @@ AVATAR_UPLOAD_DIR = "/app/uploads/avatars"
 def ensure_avatar_dir():
     os.makedirs(AVATAR_UPLOAD_DIR, exist_ok=True)
 
-@app.get("/health")
-async def health_check():
-    """Health check del servicio"""
-    return {"status": "healthy", "servicio": "usuarios"}
+# Agregar health checks mejorados
+health_router = create_health_check_routes(
+    db_dependency=Depends(get_db),
+    service_name="usuarios"
+)
+app.include_router(health_router)
 
 @app.get("/users/me", response_model=UserRead)
 def read_me(current_user: Usuario = Depends(get_current_user)):

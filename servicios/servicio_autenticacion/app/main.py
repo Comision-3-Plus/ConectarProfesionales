@@ -10,12 +10,24 @@ from passlib.context import CryptContext
 from jose import jwt, JWTError
 from typing import Dict, Any
 import os
+import sys
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../shared'))
+
+from shared.middleware.error_handler import add_exception_handlers
 
 app = FastAPI(
     title="Servicio de Autenticación",
     version="1.0.0",
     description="Servicio de autenticación y gestión de tokens JWT"
 )
+
+# Agregar exception handlers
+add_exception_handlers(app)
+
+# Agregar health checks simples
+from shared.core.health import create_simple_health_routes
+health_router = create_simple_health_routes(service_name="autenticacion")
+app.include_router(health_router)
 
 # Configuración
 SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key-change-in-production-min-32-chars")
@@ -30,11 +42,6 @@ from app.database import get_db
 from app.models import Usuario
 from app.schemas import UserCreate, UserRead, Token, TokenData
 from app.services import user_service
-
-@app.get("/health")
-async def health_check():
-    """Health check del servicio"""
-    return {"status": "healthy", "servicio": "autenticacion"}
 
 def get_password_hash(password: str) -> str:
     """Genera hash seguro de contraseña con bcrypt"""

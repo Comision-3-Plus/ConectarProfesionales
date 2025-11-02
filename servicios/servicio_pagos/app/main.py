@@ -6,7 +6,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../shared'))
 
-from fastapi import FastAPI, Depends, HTTPException, status, Request, Header
+from fastapi import FastAPI, Depends, HTTPException, status, Request, Header, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime
@@ -17,14 +17,27 @@ from shared.core.config import get_settings
 from shared.models.user import User
 from shared.models.professional import Professional
 from shared.models.trabajo import Trabajo
-from shared.models.enums import TrabajoEstado, EscrowEstado
+from shared.models.enums import TrabajoEstado, EscrowEstado, UserRole
 from shared.services.mercadopago_service import MercadoPagoService
+from shared.middleware.error_handler import add_exception_handlers
+from shared.core.health import create_health_check_routes
+from shared.core.database import get_db
 
 app = FastAPI(
     title="Servicio de Pagos",
     version="1.0.0",
     description="Pagos con MercadoPago, webhooks, escrow y gestión financiera"
 )
+
+# Agregar exception handlers
+add_exception_handlers(app)
+
+# Agregar health checks mejorados
+health_router = create_health_check_routes(
+    db_dependency=Depends(get_db),
+    service_name="pagos"
+)
+app.include_router(health_router)
 
 settings = get_settings()
 mp_service = MercadoPagoService()
@@ -33,9 +46,7 @@ mp_service = MercadoPagoService()
 # HEALTH CHECK
 # ============================================================================
 
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "servicio": "pagos"}
+# El health check básico ahora se maneja por el router de health
 
 # ============================================================================
 # MERCADOPAGO PREFERENCES
@@ -459,6 +470,134 @@ async def get_financial_stats(
             "total_liberado": float(total_liberado)
         }
     }
+
+# ============================================================================
+# PAYMENT HISTORY & COMMISSION CALCULATION
+# ============================================================================
+
+@app.get("/payments/history")
+async def get_payment_history(
+    tipo: Optional[str] = Query(None, description="Filtrar por tipo: 'ingreso' o 'egreso'"),
+    estado: Optional[str] = Query(None, description="Filtrar por estado de escrow"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Obtiene el historial de pagos del usuario (como cliente o profesional)"""
+    
+    from sqlalchemy import desc
+    
+    if current_user.rol == UserRole.CLIENTE:
+        # Pagos realizados (egresos)
+        trabajos = db.query(Trabajo).filter(
+            Trabajo.cliente_id == current_user.id
+        )
+        
+        if estado:
+            trabajos = trabajos.filter(Trabajo.estado_escrow == estado)
+        
+        trabajos = trabajos.order_by(desc(Trabajo.fecha_creacion)).all()
+        
+        return {
+            "tipo": "cliente",
+            "pagos": [
+                {
+                    "trabajo_id": t.id,
+                    "tipo": "egreso",
+                    "monto": float(t.precio_final),
+                    "estado": t.estado_escrow.value,
+                    "fecha": t.fecha_creacion,
+                    "profesional_id": t.profesional_id,
+                    "oferta_id": t.oferta_id,
+                    "mercadopago_payment_id": t.mercadopago_payment_id
+                }
+                for t in trabajos
+            ]
+        }
+    
+    elif current_user.rol == UserRole.PROFESIONAL:
+        # Pagos recibidos (ingresos)
+        professional = db.query(Professional).filter(
+            Professional.user_id == current_user.id
+        ).first()
+        
+        if not professional:
+            return {"tipo": "profesional", "pagos": []}
+        
+        trabajos = db.query(Trabajo).filter(
+            Trabajo.profesional_id == current_user.id
+        )
+        
+        if estado:
+            trabajos = trabajos.filter(Trabajo.estado_escrow == estado)
+        
+        trabajos = trabajos.order_by(desc(Trabajo.fecha_creacion)).all()
+        
+        return {
+            "tipo": "profesional",
+            "pagos": [
+                {
+                    "trabajo_id": t.id,
+                    "tipo": "ingreso",
+                    "monto_total": float(t.precio_final),
+                    "comision": float(t.comision_plataforma) if t.comision_plataforma else 0,
+                    "monto_recibido": float(t.monto_liberado) if t.monto_liberado else 0,
+                    "estado": t.estado_escrow.value,
+                    "fecha": t.fecha_creacion,
+                    "cliente_id": t.cliente_id,
+                    "oferta_id": t.oferta_id
+                }
+                for t in trabajos
+            ]
+        }
+    
+    else:
+        return {"tipo": "unknown", "pagos": []}
+
+@app.post("/payments/commission/calculate")
+async def calculate_commission(
+    trabajo_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Calcula la comisión de la plataforma para un trabajo"""
+    
+    trabajo = db.query(Trabajo).filter(Trabajo.id == trabajo_id).first()
+    
+    if not trabajo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Trabajo no encontrado"
+        )
+    
+    # Verificar acceso (cliente o profesional del trabajo, o admin)
+    has_access = (
+        trabajo.cliente_id == current_user.id or
+        trabajo.profesional_id == current_user.id or
+        current_user.rol == UserRole.ADMIN
+    )
+    
+    if not has_access:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes acceso a este trabajo"
+        )
+    
+    # Calcular comisión (por defecto 10%)
+    COMISION_PORCENTAJE = 0.10
+    precio_total = float(trabajo.precio_final)
+    comision = precio_total * COMISION_PORCENTAJE
+    monto_profesional = precio_total - comision
+    
+    return {
+        "trabajo_id": trabajo.id,
+        "precio_total": precio_total,
+        "comision_porcentaje": COMISION_PORCENTAJE * 100,
+        "comision_monto": comision,
+        "monto_profesional": monto_profesional,
+        "moneda": "ARS"
+    }
+
+# ============================================================================
 
 if __name__ == "__main__":
     import uvicorn

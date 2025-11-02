@@ -35,12 +35,25 @@ from shared.schemas.chat import (
 )
 from shared.services.chat_service import ChatService
 from shared.services.gamificacion_service import GamificacionService, get_gamificacion_service
+from shared.middleware.error_handler import add_exception_handlers
+from shared.core.health import create_health_check_routes
+from shared.core.database import get_db
 
 app = FastAPI(
     title="Servicio de Chat y Ofertas",
     version="1.0.0",
     description="Chat en tiempo real, ofertas económicas, trabajos y reseñas"
 )
+
+# Agregar exception handlers
+add_exception_handlers(app)
+
+# Agregar health checks mejorados
+health_router = create_health_check_routes(
+    db_dependency=Depends(get_db),
+    service_name="chat_ofertas"
+)
+app.include_router(health_router)
 
 # Inicializar servicios
 chat_service = ChatService()
@@ -49,9 +62,7 @@ chat_service = ChatService()
 # HEALTH CHECK
 # ============================================================================
 
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "servicio": "chat_ofertas"}
+# El health check básico ahora se maneja por el router de health
 
 # ============================================================================
 # CHAT ENDPOINTS (Firestore)
@@ -368,6 +379,147 @@ async def delete_oferta(
     
     db.delete(oferta)
     db.commit()
+
+@app.put("/ofertas/{oferta_id}", response_model=OfertaResponse)
+async def update_oferta(
+    oferta_id: int,
+    oferta_data: OfertaUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Actualiza una oferta (solo el profesional puede hacerlo)"""
+    
+    oferta = db.query(Oferta).filter(Oferta.id == oferta_id).first()
+    
+    if not oferta:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Oferta no encontrada"
+        )
+    
+    # Verificar que el usuario es el profesional de la oferta
+    professional = db.query(Professional).filter(
+        Professional.user_id == current_user.id
+    ).first()
+    
+    if not professional or oferta.profesional_id != professional.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el profesional puede actualizar su oferta"
+        )
+    
+    if oferta.estado != OfertaEstado.OFERTADO:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo se pueden actualizar ofertas en estado OFERTADO"
+        )
+    
+    # Actualizar campos
+    update_data = oferta_data.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(oferta, field, value)
+    
+    db.commit()
+    db.refresh(oferta)
+    
+    return oferta
+
+@app.post("/ofertas/{oferta_id}/reject", response_model=OfertaResponse)
+async def reject_oferta(
+    oferta_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Rechaza una oferta (el cliente puede rechazarla)"""
+    
+    oferta = db.query(Oferta).filter(Oferta.id == oferta_id).first()
+    
+    if not oferta:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Oferta no encontrada"
+        )
+    
+    # Verificar que el usuario es el cliente de la oferta
+    if oferta.cliente_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el cliente puede rechazar la oferta"
+        )
+    
+    if oferta.estado != OfertaEstado.OFERTADO:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Solo se pueden rechazar ofertas en estado OFERTADO"
+        )
+    
+    # Actualizar estado
+    oferta.estado = OfertaEstado.RECHAZADO
+    db.commit()
+    db.refresh(oferta)
+    
+    # Mensaje automático en el chat
+    try:
+        await chat_service.send_system_message(
+            oferta.chat_id,
+            "❌ Oferta rechazada por el cliente"
+        )
+    except:
+        pass
+    
+    return oferta
+
+@app.get("/ofertas/{oferta_id}/timeline", response_model=dict)
+async def get_oferta_timeline(
+    oferta_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Obtiene el historial de cambios de una oferta"""
+    
+    oferta = db.query(Oferta).filter(Oferta.id == oferta_id).first()
+    
+    if not oferta:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Oferta no encontrada"
+        )
+    
+    # Verificar que el usuario tiene acceso
+    professional = db.query(Professional).filter(
+        Professional.user_id == current_user.id
+    ).first()
+    
+    is_professional = professional and oferta.profesional_id == professional.id
+    is_client = oferta.cliente_id == current_user.id
+    
+    if not (is_professional or is_client):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes acceso a esta oferta"
+        )
+    
+    # Construir timeline
+    timeline = [
+        {
+            "evento": "Oferta creada",
+            "fecha": oferta.fecha_creacion,
+            "estado": "OFERTADO"
+        }
+    ]
+    
+    if oferta.estado in [OfertaEstado.ACEPTADO, OfertaEstado.RECHAZADO]:
+        timeline.append({
+            "evento": f"Oferta {oferta.estado.lower()}",
+            "fecha": oferta.fecha_actualizacion,
+            "estado": oferta.estado
+        })
+    
+    return {
+        "oferta_id": oferta.id,
+        "estado_actual": oferta.estado,
+        "timeline": timeline
+    }
 
 # ============================================================================
 # TRABAJOS ENDPOINTS

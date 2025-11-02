@@ -17,6 +17,13 @@ app = FastAPI(
     description="Puerta de enlace para arquitectura de microservicios"
 )
 
+# ============================================================================
+# API VERSIONING CONFIGURATION
+# ============================================================================
+
+SUPPORTED_VERSIONS = ["v1", "v2"]
+DEFAULT_VERSION = "v1"
+
 # Configuración de servicios backend
 SERVICIOS = {
     "autenticacion": os.getenv("SERVICIO_AUTENTICACION_URL", "http://servicio-autenticacion:8001"),
@@ -85,8 +92,31 @@ async def health_check():
     
     return {
         "gateway": "healthy",
+        "version": "2.0.0",
+        "api_versions": SUPPORTED_VERSIONS,
+        "default_version": DEFAULT_VERSION,
         "servicios": servicios_estado,
         "estado_general": "healthy" if todos_ok else "degraded"
+    }
+
+@app.get("/")
+async def root():
+    """Endpoint raíz con información de la API"""
+    return {
+        "name": "ConectarProfesionales API Gateway",
+        "version": "2.0.0",
+        "api_versions": SUPPORTED_VERSIONS,
+        "default_version": DEFAULT_VERSION,
+        "endpoints": {
+            "health": "/health",
+            "v1_base": "/api/v1",
+            "v2_base": "/api/v2"
+        },
+        "documentation": {
+            "swagger_v1": "/api/v1/docs",
+            "swagger_v2": "/api/v2/docs"
+        },
+        "deprecation_notice": "API v1 será deprecada en 6 meses. Migre a v2."
     }
 
 # Mapeo de rutas a servicios
@@ -134,13 +164,67 @@ RUTAS_SERVICIO = {
     "/notificar": "notificaciones",
 }
 
-def obtener_servicio_destino(path: str) -> Optional[str]:
+# Rutas específicas para API v2 (con cambios)
+RUTAS_SERVICIO_V2 = {
+    # En v2, autenticación usa OAuth2 mejorado
+    "/auth": "autenticacion",  # Podría apuntar a "autenticacion_v2" si existiera
+    
+    # Resto igual que v1 por ahora
+    **RUTAS_SERVICIO
+}
+
+def get_version_from_path(path: str) -> tuple[str, str]:
     """
-    Determina a qué servicio debe ir la petición basándose en la ruta.
+    Extrae la versión de API del path.
+    
+    Args:
+        path: Path completo (ej: /api/v2/users/me)
+        
+    Returns:
+        Tupla (version, path_sin_version)
+        
+    Examples:
+        "/api/v1/users/me" -> ("v1", "/users/me")
+        "/api/v2/auth/login" -> ("v2", "/auth/login")
+        "/users/me" -> ("v1", "/users/me")  # Default v1
+    """
+    # Normalizar path
+    full_path = f"/{path}" if not path.startswith("/") else path
+    
+    # Verificar si tiene prefijo /api/vX
+    for version in SUPPORTED_VERSIONS:
+        version_prefix = f"/api/{version}"
+        if full_path.startswith(version_prefix + "/"):
+            return version, full_path[len(version_prefix):]
+        elif full_path == version_prefix:
+            return version, "/"
+    
+    # Verificar prefijo /api sin versión (usar default)
+    if full_path.startswith("/api/"):
+        return DEFAULT_VERSION, full_path[4:]
+    elif full_path == "/api":
+        return DEFAULT_VERSION, "/"
+    
+    # Sin prefijo de versión, usar default
+    return DEFAULT_VERSION, full_path
+
+def obtener_servicio_destino(path: str, version: str = "v1") -> Optional[str]:
+    """
+    Determina a qué servicio debe ir la petición basándose en la ruta y versión.
     Ordena las rutas por longitud (más largas primero) para que las más específicas tengan prioridad.
+    
+    Args:
+        path: Path sin versión
+        version: Versión de API (v1, v2, etc.)
+        
+    Returns:
+        Nombre del servicio o None
     """
+    # Seleccionar rutas según versión
+    rutas = RUTAS_SERVICIO_V2 if version == "v2" else RUTAS_SERVICIO
+    
     # Ordenar rutas por longitud descendente para que las más específicas se evalúen primero
-    rutas_ordenadas = sorted(RUTAS_SERVICIO.items(), key=lambda x: len(x[0]), reverse=True)
+    rutas_ordenadas = sorted(rutas.items(), key=lambda x: len(x[0]), reverse=True)
     
     for ruta_prefijo, servicio in rutas_ordenadas:
         if path.startswith(ruta_prefijo):
@@ -150,22 +234,26 @@ def obtener_servicio_destino(path: str) -> Optional[str]:
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"])
 async def gateway_route(path: str, request: Request):
     """
-    Enruta todas las peticiones a los microservicios correspondientes
+    Enruta todas las peticiones a los microservicios correspondientes.
+    Soporta versionado de API: /api/v1/... y /api/v2/...
     """
-    # Normalizar prefijos de versión (acepta /api y /api/v1)
-    full_path = f"/{path}"
-    for version_prefix in ("/api/v1", "/api"):
-        if full_path.startswith(version_prefix + "/") or full_path == version_prefix:
-            full_path = full_path[len(version_prefix):] or "/"
-            break
-
-    # Determinar servicio destino sobre el path normalizado
-    servicio_nombre = obtener_servicio_destino(full_path)
+    # Extraer versión y normalizar path
+    version, normalized_path = get_version_from_path(f"/{path}")
+    
+    # Validar versión soportada
+    if version not in SUPPORTED_VERSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Versión de API no soportada: {version}. Versiones disponibles: {', '.join(SUPPORTED_VERSIONS)}"
+        )
+    
+    # Determinar servicio destino
+    servicio_nombre = obtener_servicio_destino(normalized_path, version)
     
     if not servicio_nombre:
         raise HTTPException(
             status_code=404,
-            detail=f"No se encontró un servicio para la ruta: /{path}"
+            detail=f"No se encontró un servicio para la ruta: {normalized_path} (API {version})"
         )
     
     servicio_url = SERVICIOS.get(servicio_nombre)
@@ -176,19 +264,19 @@ async def gateway_route(path: str, request: Request):
             detail=f"Servicio {servicio_nombre} no disponible"
         )
     
-    # Construir URL completa del servicio destino con path normalizado
-    # full_path ya comienza con "/"
-    url_destino = f"{servicio_url}{full_path}"
+    # Construir URL completa del servicio destino
+    url_destino = f"{servicio_url}{normalized_path}"
     
-    # Obtener query params
-    query_params = dict(request.query_params)
-    
-    # Obtener headers (excluir algunos headers internos)
+    # Agregar header de versión para que el servicio sepa la versión solicitada
     headers = dict(request.headers)
     headers_filtrados = {
         k: v for k, v in headers.items() 
         if k.lower() not in ['host', 'content-length']
     }
+    headers_filtrados['X-API-Version'] = version
+    
+    # Obtener query params
+    query_params = dict(request.query_params)
     
     # Obtener body si existe
     body = None
@@ -253,6 +341,9 @@ async def gateway_route(path: str, request: Request):
                 "connection"
             ]
         }
+        
+        # Agregar header de versión en respuesta
+        headers_filtrados_resp['X-API-Version'] = version
 
         content_type = upstream_headers.get("content-type", "")
         try:

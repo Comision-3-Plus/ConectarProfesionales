@@ -15,14 +15,24 @@ from shared.core.database import get_db
 from shared.core.security import get_current_user, get_current_active_user
 from shared.models.user import User
 from shared.models.professional import Professional
+from shared.schemas.notification import NotificationPreferencesUpdate, NotificationPreferencesRead, NotificationHistoryItem
 from shared.services.email_service import EmailService
 from shared.services.gamificacion_service import GamificacionService, get_gamificacion_service
+from shared.middleware.error_handler import add_exception_handlers
+from shared.core.health import create_simple_health_routes
 
 app = FastAPI(
     title="Servicio de Notificaciones",
     version="1.0.0",
     description="Emails, push notifications y gamificación"
 )
+
+# Agregar exception handlers
+add_exception_handlers(app)
+
+# Agregar health checks simples (sin DB directa)
+health_router = create_simple_health_routes(service_name="notificaciones")
+app.include_router(health_router)
 
 email_service = EmailService()
 
@@ -46,14 +56,6 @@ class GamificationEvent(BaseModel):
     user_id: int
     event_type: str  # "trabajo_completado", "resena_5_estrellas", etc.
     metadata: Optional[dict] = None
-
-# ============================================================================
-# HEALTH CHECK
-# ============================================================================
-
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "servicio": "notificaciones"}
 
 # ============================================================================
 # EMAIL ENDPOINTS
@@ -208,6 +210,93 @@ async def send_push_notification(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al enviar push: {str(e)}"
         )
+
+# ============================================================================
+# NOTIFICATION PREFERENCES & HISTORY
+# ============================================================================
+
+@app.get("/notifications/preferences", response_model=NotificationPreferencesRead)
+async def get_notification_preferences(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Obtiene las preferencias de notificaciones del usuario"""
+    
+    # Por ahora usamos valores por defecto
+    # En producción, esto vendría de una tabla notification_preferences
+    return {
+        "user_id": current_user.id,
+        "email_ofertas": True,
+        "email_trabajos": True,
+        "email_pagos": True,
+        "email_mensajes": True,
+        "push_ofertas": True,
+        "push_trabajos": True,
+        "push_pagos": True,
+        "push_mensajes": False
+    }
+
+@app.put("/notifications/preferences", response_model=NotificationPreferencesRead)
+async def update_notification_preferences(
+    preferences: NotificationPreferencesUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Actualiza las preferencias de notificaciones del usuario"""
+    
+    # Por ahora solo devolvemos los datos actualizados
+    # En producción, esto se guardaría en la tabla notification_preferences
+    
+    # Simular actualización
+    updated_preferences = {
+        "user_id": current_user.id,
+        "email_ofertas": preferences.email_ofertas if preferences.email_ofertas is not None else True,
+        "email_trabajos": preferences.email_trabajos if preferences.email_trabajos is not None else True,
+        "email_pagos": preferences.email_pagos if preferences.email_pagos is not None else True,
+        "email_mensajes": preferences.email_mensajes if preferences.email_mensajes is not None else True,
+        "push_ofertas": preferences.push_ofertas if preferences.push_ofertas is not None else True,
+        "push_trabajos": preferences.push_trabajos if preferences.push_trabajos is not None else True,
+        "push_pagos": preferences.push_pagos if preferences.push_pagos is not None else True,
+        "push_mensajes": preferences.push_mensajes if preferences.push_mensajes is not None else False
+    }
+    
+    return updated_preferences
+
+@app.get("/notifications/history")
+async def get_notification_history(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Obtiene el historial de notificaciones del usuario"""
+    
+    from datetime import datetime
+    import uuid
+    
+    # Por ahora devolvemos datos simulados
+    # En producción, esto vendría de una tabla notification_history
+    
+    history = [
+        {
+            "id": str(uuid.uuid4()),
+            "user_id": str(current_user.id),
+            "tipo": "trabajo_creado",
+            "titulo": "Nuevo trabajo asignado",
+            "mensaje": "Se te ha asignado un nuevo trabajo. Revisa los detalles.",
+            "leido": False,
+            "fecha_envio": datetime.utcnow().isoformat()
+        },
+        {
+            "id": str(uuid.uuid4()),
+            "user_id": str(current_user.id),
+            "tipo": "oferta_aceptada",
+            "titulo": "Oferta aceptada",
+            "mensaje": "Tu oferta ha sido aceptada por el cliente.",
+            "leido": True,
+            "fecha_envio": datetime.utcnow().isoformat()
+        }
+    ]
+    
+    return {"notifications": history, "count": len(history)}
 
 # ============================================================================
 # GAMIFICACIÓN ENDPOINTS

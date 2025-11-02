@@ -19,7 +19,9 @@ from shared.core.security import get_current_user, get_current_active_user
 from shared.models.user import User
 from shared.models.professional import Professional
 from shared.models.oficio import Oficio
-from shared.models.portfolio import PortfolioItem
+from shared.models.portfolio import PortfolioItem, PortfolioImagen
+from shared.models.trabajo import Trabajo
+from shared.models.oferta import Oferta
 from shared.models.enums import KYCStatus, UserRole
 from shared.schemas.professional import (
     ProfessionalCreate, ProfessionalUpdate, ProfessionalResponse,
@@ -27,8 +29,14 @@ from shared.schemas.professional import (
 )
 from shared.schemas.search import SearchRequest, SearchResponse, ProfessionalSearchResult
 from shared.schemas.oficio import OficioCreate, OficioResponse, OficioRead
-from shared.schemas.portfolio import PortfolioCreate, PortfolioResponse
+from shared.schemas.portfolio import PortfolioCreate, PortfolioResponse, PortfolioItemUpdate, PortfolioImagenRead
+from shared.schemas.trabajo import TrabajoRead
+from shared.schemas.oferta import OfertaRead
 from shared.schemas.admin import KYCApproveRequest, UserBanRequest
+from shared.middleware.error_handler import add_exception_handlers
+from shared.core.health import create_health_check_routes
+from shared.core.database import get_db
+from shared.cache.cache_manager import cached, SearchCache, invalidate_search_cache
 
 app = FastAPI(
     title="Servicio de Profesionales",
@@ -36,13 +44,21 @@ app = FastAPI(
     description="Gestión de profesionales, KYC, búsqueda geoespacial con PostGIS, portfolio y oficios"
 )
 
+# Agregar exception handlers
+add_exception_handlers(app)
+
+# Agregar health checks mejorados
+health_router = create_health_check_routes(
+    db_dependency=Depends(get_db),
+    service_name="profesionales"
+)
+app.include_router(health_router)
+
 # ============================================================================
 # HEALTH CHECK
 # ============================================================================
 
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "servicio": "profesionales"}
+# El health check básico ahora se maneja por el router de health
 
 # ============================================================================
 # PROFESSIONAL PROFILE ENDPOINTS
@@ -276,6 +292,158 @@ async def delete_portfolio_item(
     db.delete(item)
     db.commit()
 
+@app.put("/professional/portfolio/{item_id}", response_model=PortfolioResponse)
+async def update_portfolio_item(
+    item_id: int,
+    item_data: PortfolioItemUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Actualiza un item del portfolio"""
+    if current_user.rol != UserRole.PROFESIONAL:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los profesionales pueden actualizar items de su portfolio"
+        )
+    
+    professional = db.query(Professional).filter(
+        Professional.user_id == current_user.id
+    ).first()
+    
+    if not professional:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Perfil profesional no encontrado"
+        )
+    
+    item = db.query(PortfolioItem).filter(
+        PortfolioItem.id == item_id,
+        PortfolioItem.professional_id == professional.id
+    ).first()
+    
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item no encontrado"
+        )
+    
+    # Actualizar solo campos proporcionados
+    update_data = item_data.dict(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(item, field, value)
+    
+    db.commit()
+    db.refresh(item)
+    return item
+
+@app.post("/professional/portfolio/{item_id}/images", response_model=List[PortfolioImagenRead])
+async def add_portfolio_images(
+    item_id: int,
+    imagen_urls: List[str],
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Agrega múltiples imágenes a un item del portfolio"""
+    if current_user.rol != UserRole.PROFESIONAL:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los profesionales pueden agregar imágenes a su portfolio"
+        )
+    
+    professional = db.query(Professional).filter(
+        Professional.user_id == current_user.id
+    ).first()
+    
+    if not professional:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Perfil profesional no encontrado"
+        )
+    
+    item = db.query(PortfolioItem).filter(
+        PortfolioItem.id == item_id,
+        PortfolioItem.professional_id == professional.id
+    ).first()
+    
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item no encontrado"
+        )
+    
+    # Obtener el máximo orden actual
+    max_orden = db.query(func.max(PortfolioImagen.orden)).filter(
+        PortfolioImagen.portfolio_item_id == item_id
+    ).scalar() or 0
+    
+    # Crear nuevas imágenes
+    new_images = []
+    for idx, url in enumerate(imagen_urls):
+        new_image = PortfolioImagen(
+            portfolio_item_id=item_id,
+            imagen_url=url,
+            orden=max_orden + idx + 1
+        )
+        db.add(new_image)
+        new_images.append(new_image)
+    
+    db.commit()
+    for img in new_images:
+        db.refresh(img)
+    
+    return new_images
+
+@app.delete("/professional/portfolio/{item_id}/images/{image_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_portfolio_image(
+    item_id: int,
+    image_id: int,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Elimina una imagen específica del portfolio"""
+    if current_user.rol != UserRole.PROFESIONAL:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los profesionales pueden eliminar imágenes de su portfolio"
+        )
+    
+    professional = db.query(Professional).filter(
+        Professional.user_id == current_user.id
+    ).first()
+    
+    if not professional:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Perfil profesional no encontrado"
+        )
+    
+    # Verificar que el item pertenece al profesional
+    item = db.query(PortfolioItem).filter(
+        PortfolioItem.id == item_id,
+        PortfolioItem.professional_id == professional.id
+    ).first()
+    
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Item no encontrado"
+        )
+    
+    # Buscar y eliminar la imagen
+    image = db.query(PortfolioImagen).filter(
+        PortfolioImagen.id == image_id,
+        PortfolioImagen.portfolio_item_id == item_id
+    ).first()
+    
+    if not image:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Imagen no encontrada"
+        )
+    
+    db.delete(image)
+    db.commit()
+
 # ============================================================================
 # OFICIOS (TRADES) ENDPOINTS
 # ============================================================================
@@ -380,15 +548,95 @@ async def delete_oficio(
     db.commit()
 
 # ============================================================================
+# TRABAJOS Y OFERTAS ENDPOINTS (para profesionales)
+# ============================================================================
+
+@app.get("/professional/trabajos", response_model=List[TrabajoRead])
+async def get_my_trabajos(
+    estado: Optional[str] = Query(None, description="Filtrar por estado"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Obtiene los trabajos del profesional autenticado"""
+    if current_user.rol != UserRole.PROFESIONAL:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los profesionales pueden ver sus trabajos"
+        )
+    
+    professional = db.query(Professional).filter(
+        Professional.user_id == current_user.id
+    ).first()
+    
+    if not professional:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Perfil profesional no encontrado"
+        )
+    
+    query = db.query(Trabajo).filter(
+        Trabajo.profesional_id == current_user.id
+    )
+    
+    if estado:
+        query = query.filter(Trabajo.estado_escrow == estado)
+    
+    trabajos = query.order_by(Trabajo.fecha_creacion.desc()).all()
+    return trabajos
+
+@app.get("/professional/ofertas", response_model=List[OfertaRead])
+async def get_my_ofertas(
+    estado: Optional[str] = Query(None, description="Filtrar por estado"),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Obtiene las ofertas enviadas por el profesional"""
+    if current_user.rol != UserRole.PROFESIONAL:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los profesionales pueden ver sus ofertas"
+        )
+    
+    professional = db.query(Professional).filter(
+        Professional.user_id == current_user.id
+    ).first()
+    
+    if not professional:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Perfil profesional no encontrado"
+        )
+    
+    query = db.query(Oferta).filter(
+        Oferta.profesional_id == current_user.id
+    )
+    
+    if estado:
+        query = query.filter(Oferta.estado == estado)
+    
+    ofertas = query.order_by(Oferta.fecha_creacion.desc()).all()
+    return ofertas
+
+# ============================================================================
 # SEARCH ENDPOINTS (PostGIS)
 # ============================================================================
 
 @app.post("/search", response_model=SearchResponse)
+@cached(ttl=180, key_prefix="search_professionals")
 async def search_professionals(
     search_params: SearchRequest,
     db: Session = Depends(get_db)
 ):
-    """Búsqueda geoespacial de profesionales con PostGIS"""
+    """
+    Búsqueda geoespacial avanzada de profesionales con PostGIS.
+    
+    Características:
+    - Búsqueda por radio geográfico
+    - Filtros por oficio, habilidades, rating
+    - Ordenamiento por distancia, rating, precio
+    - Paginación
+    - Cache de resultados (3 minutos)
+    """
     
     query = db.query(Professional).join(User).filter(
         User.is_active == True,
@@ -430,6 +678,17 @@ async def search_professionals(
             Professional.rating_promedio >= search_params.rating_minimo
         )
     
+    # Filtro por rango de precios
+    if hasattr(search_params, 'precio_minimo') and search_params.precio_minimo:
+        query = query.filter(Professional.tarifa_por_hora >= search_params.precio_minimo)
+    
+    if hasattr(search_params, 'precio_maximo') and search_params.precio_maximo:
+        query = query.filter(Professional.tarifa_por_hora <= search_params.precio_maximo)
+    
+    # Filtro por disponibilidad
+    if hasattr(search_params, 'disponible') and search_params.disponible:
+        query = query.filter(Professional.disponible == True)
+    
     # Ordenamiento
     if search_params.ordenar_por == "rating":
         query = query.order_by(Professional.rating_promedio.desc())
@@ -440,6 +699,14 @@ async def search_professionals(
         point = WKTElement(f'POINT({search_params.longitude} {search_params.latitude})', srid=4326)
         query = query.order_by(
             func.ST_Distance(Professional.ubicacion, point)
+        )
+    elif search_params.ordenar_por == "trabajos":
+        query = query.order_by(Professional.trabajos_completados.desc())
+    else:
+        # Por defecto, ordenar por rating y luego por trabajos completados
+        query = query.order_by(
+            Professional.rating_promedio.desc(),
+            Professional.trabajos_completados.desc()
         )
     
     # Paginación
