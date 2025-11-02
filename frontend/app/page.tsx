@@ -37,21 +37,34 @@ export default function HomePage() {
     e.preventDefault();
     e.stopPropagation();
     
-    alert('[DEBUG] Click detectado!');
-    console.log('[handlePublishProject] ¡Función ejecutada!', { mounted, isAuthenticated, user });
+    console.log('[handlePublishProject] Estado:', {
+      mounted,
+      isAuthenticated,
+      user,
+      rol: user?.rol
+    });
     
     if (!mounted) {
-      alert('No montado aún');
       return;
     }
     
-    // Simplificar la lógica - siempre ir a publicar si está logueado
-    if (isAuthenticated && user) {
-      alert(`Logueado como: ${user.email} - ${user.rol}`);
-      router.push('/dashboard/cliente/publicar');
-    } else {
-      alert('No logueado - ir a register');
+    if (!isAuthenticated || !user) {
+      // No está logueado, redirigir a registro
+      console.log('[handlePublishProject] Redirigiendo a /register');
       router.push('/register');
+      return;
+    }
+
+    // Usuario logueado: redirigir según su rol
+    if (user.rol === 'PROFESIONAL') {
+      console.log('[handlePublishProject] Redirigiendo profesional a /dashboard/profesional/publicar');
+      router.push('/dashboard/profesional/publicar');
+    } else if (user.rol === 'CLIENTE') {
+      console.log('[handlePublishProject] Redirigiendo cliente a /proyectos');
+      router.push('/proyectos'); // Ver marketplace
+    } else {
+      console.log('[handlePublishProject] Rol desconocido, redirigiendo a /dashboard');
+      router.push('/dashboard');
     }
   };
 

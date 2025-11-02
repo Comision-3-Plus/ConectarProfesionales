@@ -1,7 +1,7 @@
 """
 Modelo de Servicio Instantáneo - Servicios rápidos predefinidos.
 """
-from sqlalchemy import Column, String, Table, ForeignKey
+from sqlalchemy import Column, String, Table, ForeignKey, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.dialects.postgresql import UUID
 from .base import Base, TimestampMixin, UUIDMixin
@@ -50,6 +50,21 @@ class ServicioInstantaneo(Base, UUIDMixin, TimestampMixin):
         comment="Descripción del servicio instantáneo"
     )
     
+    precio_fijo = Column(
+        Numeric(10, 2),
+        nullable=False,
+        comment="Precio fijo del servicio"
+    )
+    
+    # ID del profesional que publicó este servicio (nuevo campo)
+    profesional_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey('profesionales.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True,
+        comment='ID del profesional que ofrece este servicio'
+    )
+    
     # Relación con Oficio (un servicio pertenece a un oficio)
     oficio_id = Column(
         UUID(as_uuid=True),
@@ -65,7 +80,14 @@ class ServicioInstantaneo(Base, UUIDMixin, TimestampMixin):
         backref="servicios_instantaneos"
     )
     
-    # Relación M2M con Profesionales
+    # Relación con el Profesional que publicó este servicio
+    profesional = relationship(
+        "Profesional",
+        foreign_keys=[profesional_id],
+        backref="mis_servicios_publicados"
+    )
+    
+    # Relación M2M con Profesionales (para servicios instantáneos del admin - legacy)
     profesionales = relationship(
         "Profesional",
         secondary=profesional_servicios_instant,

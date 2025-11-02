@@ -16,6 +16,21 @@ import {
 
 export const clienteService = {
   // ==========================================
+  // SERVICIOS INSTANTÁNEOS
+  // ==========================================
+
+  /**
+   * POST /api/v1/cliente/servicios/{servicio_id}/contratar
+   * Contratar un servicio instantáneo publicado
+   * Crea automáticamente: chat, oferta, trabajo y link de pago
+   */
+  contratarProyecto: async (servicioId: string): Promise<OfertaAcceptResponse> => {
+    const response = await api.post<OfertaAcceptResponse>(
+      `/cliente/servicios/${servicioId}/contratar`
+    );
+    return response.data;
+  },
+  // ==========================================
   // OFERTAS
   // ==========================================
 

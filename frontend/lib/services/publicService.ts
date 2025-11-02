@@ -4,7 +4,7 @@
  */
 
 import { api } from '../api';
-import { PublicProfileResponse, PortfolioItemRead, OficioRead } from '@/types';
+import { PublicProfileResponse, PortfolioItemRead, OficioRead, ServicioInstantaneoRead } from '@/types';
 
 export const publicService = {
   /**
@@ -31,6 +31,15 @@ export const publicService = {
    */
   getProfessionalPortfolio: async (profId: string): Promise<PortfolioItemRead[]> => {
     const response = await api.get<PortfolioItemRead[]>(`/public/professional/${profId}/portfolio`);
+    return response.data;
+  },
+
+  /**
+   * GET /api/v1/servicios
+   * Obtener todos los proyectos/servicios publicados (Marketplace)
+   */
+  getProyectosPublicados: async (params?: { oficio_id?: string }): Promise<ServicioInstantaneoRead[]> => {
+    const response = await api.get<ServicioInstantaneoRead[]>('/servicios', { params });
     return response.data;
   },
 };

@@ -26,7 +26,7 @@ from shared.schemas.professional import (
     KYCSubmitRequest, KYCStatusResponse
 )
 from shared.schemas.search import SearchRequest, SearchResponse, ProfessionalSearchResult
-from shared.schemas.oficio import OficioCreate, OficioResponse
+from shared.schemas.oficio import OficioCreate, OficioResponse, OficioRead
 from shared.schemas.portfolio import PortfolioCreate, PortfolioResponse
 from shared.schemas.admin import KYCApproveRequest, UserBanRequest
 
@@ -54,7 +54,7 @@ async def get_my_professional_profile(
     db: Session = Depends(get_db)
 ):
     """Obtiene el perfil profesional del usuario autenticado"""
-    if current_user.role != UserRole.PROFESIONAL:
+    if current_user.rol != UserRole.PROFESIONAL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los profesionales pueden acceder a este endpoint"
@@ -79,7 +79,7 @@ async def update_my_professional_profile(
     db: Session = Depends(get_db)
 ):
     """Actualiza el perfil profesional del usuario autenticado"""
-    if current_user.role != UserRole.PROFESIONAL:
+    if current_user.rol != UserRole.PROFESIONAL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los profesionales pueden actualizar su perfil"
@@ -114,7 +114,7 @@ async def submit_kyc(
     db: Session = Depends(get_db)
 ):
     """Envía documentación KYC para verificación"""
-    if current_user.role != UserRole.PROFESIONAL:
+    if current_user.rol != UserRole.PROFESIONAL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los profesionales pueden enviar KYC"
@@ -150,7 +150,7 @@ async def get_kyc_status(
     db: Session = Depends(get_db)
 ):
     """Obtiene el estado actual del KYC"""
-    if current_user.role != UserRole.PROFESIONAL:
+    if current_user.rol != UserRole.PROFESIONAL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los profesionales pueden ver su estado KYC"
@@ -183,7 +183,7 @@ async def get_my_portfolio(
     db: Session = Depends(get_db)
 ):
     """Obtiene el portfolio del profesional autenticado"""
-    if current_user.role != UserRole.PROFESIONAL:
+    if current_user.rol != UserRole.PROFESIONAL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los profesionales tienen portfolio"
@@ -212,7 +212,7 @@ async def add_portfolio_item(
     db: Session = Depends(get_db)
 ):
     """Agrega un item al portfolio"""
-    if current_user.role != UserRole.PROFESIONAL:
+    if current_user.rol != UserRole.PROFESIONAL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los profesionales pueden agregar items al portfolio"
@@ -246,7 +246,7 @@ async def delete_portfolio_item(
     db: Session = Depends(get_db)
 ):
     """Elimina un item del portfolio"""
-    if current_user.role != UserRole.PROFESIONAL:
+    if current_user.rol != UserRole.PROFESIONAL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los profesionales pueden eliminar items de su portfolio"
@@ -286,7 +286,7 @@ async def get_my_oficios(
     db: Session = Depends(get_db)
 ):
     """Obtiene los oficios del profesional autenticado"""
-    if current_user.role != UserRole.PROFESIONAL:
+    if current_user.rol != UserRole.PROFESIONAL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los profesionales tienen oficios"
@@ -315,7 +315,7 @@ async def add_oficio(
     db: Session = Depends(get_db)
 ):
     """Agrega un nuevo oficio al profesional"""
-    if current_user.role != UserRole.PROFESIONAL:
+    if current_user.rol != UserRole.PROFESIONAL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los profesionales pueden agregar oficios"
@@ -349,7 +349,7 @@ async def delete_oficio(
     db: Session = Depends(get_db)
 ):
     """Elimina un oficio del profesional"""
-    if current_user.role != UserRole.PROFESIONAL:
+    if current_user.rol != UserRole.PROFESIONAL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los profesionales pueden eliminar oficios"
@@ -530,13 +530,20 @@ async def get_public_portfolio(
     
     return portfolio_items
 
-@app.get("/public/oficios", response_model=List[str])
+@app.get("/public/oficios")
 async def get_all_oficios(
     db: Session = Depends(get_db)
 ):
-    """Obtiene lista de todos los oficios disponibles (únicos)"""
-    oficios = db.query(Oficio.nombre).distinct().all()
-    return [oficio[0] for oficio in oficios]
+    """Obtiene lista de todos los oficios disponibles con sus IDs"""
+    oficios = db.query(Oficio).all()
+    result = []
+    for oficio in oficios:
+        result.append({
+            "id": str(oficio.id),
+            "nombre": oficio.nombre,
+            "descripcion": oficio.descripcion
+        })
+    return result
 
 # ============================================================================
 # ADMIN ENDPOINTS
@@ -548,7 +555,7 @@ async def get_pending_kyc(
     db: Session = Depends(get_db)
 ):
     """Obtiene lista de KYCs pendientes de revisión (solo admin)"""
-    if current_user.role != UserRole.ADMIN:
+    if current_user.rol != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los administradores pueden acceder a este endpoint"
@@ -567,7 +574,7 @@ async def approve_kyc(
     db: Session = Depends(get_db)
 ):
     """Aprueba el KYC de un profesional (solo admin)"""
-    if current_user.role != UserRole.ADMIN:
+    if current_user.rol != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los administradores pueden aprobar KYC"
@@ -599,7 +606,7 @@ async def reject_kyc(
     db: Session = Depends(get_db)
 ):
     """Rechaza el KYC de un profesional (solo admin)"""
-    if current_user.role != UserRole.ADMIN:
+    if current_user.rol != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los administradores pueden rechazar KYC"
@@ -631,7 +638,7 @@ async def ban_user(
     db: Session = Depends(get_db)
 ):
     """Banea un usuario (solo admin)"""
-    if current_user.role != UserRole.ADMIN:
+    if current_user.rol != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los administradores pueden banear usuarios"
@@ -663,7 +670,7 @@ async def unban_user(
     db: Session = Depends(get_db)
 ):
     """Desbanea un usuario (solo admin)"""
-    if current_user.role != UserRole.ADMIN:
+    if current_user.rol != UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los administradores pueden desbanear usuarios"
@@ -681,6 +688,259 @@ async def unban_user(
     db.commit()
     
     return {"message": f"Usuario {user.email} desbaneado correctamente"}
+
+# ============================================================================
+# SERVICIOS INSTANTÁNEOS (PROYECTOS PUBLICADOS POR PROFESIONALES)
+# ============================================================================
+
+from shared.models.servicio_instantaneo import ServicioInstantaneo
+from shared.schemas.servicio_instantaneo import (
+    ServicioInstantaneoCreate,
+    ServicioInstantaneoRead,
+    ServicioInstantaneoUpdate
+)
+
+@app.post("/profesional/servicios", response_model=ServicioInstantaneoRead, status_code=status.HTTP_201_CREATED)
+async def crear_servicio_publicado(
+    servicio_data: ServicioInstantaneoCreate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Crear un nuevo servicio/proyecto publicado por el profesional.
+    Solo profesionales y admins pueden crear servicios.
+    """
+    if current_user.rol not in [UserRole.PROFESIONAL, UserRole.ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los profesionales pueden publicar servicios"
+        )
+    
+    # Verificar que el profesional existe, o crear uno si es ADMIN
+    professional = db.query(Professional).filter(
+        Professional.user_id == current_user.id
+    ).first()
+    
+    if not professional:
+        # Si es ADMIN, crear perfil profesional automáticamente
+        if current_user.rol == UserRole.ADMIN:
+            professional = Professional(
+                user_id=current_user.id,
+                nivel='ORO',  # Dar nivel ORO a los admins
+                puntos_xp=5000,
+                comision_porcentaje=10.0  # Comisión reducida para admins
+            )
+            db.add(professional)
+            db.commit()
+            db.refresh(professional)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Perfil profesional no encontrado"
+            )
+    
+    # Verificar que el oficio existe
+    oficio = db.query(Oficio).filter(Oficio.id == servicio_data.oficio_id).first()
+    if not oficio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Oficio no encontrado"
+        )
+    
+    # Crear el servicio
+    nuevo_servicio = ServicioInstantaneo(
+        nombre=servicio_data.nombre,
+        descripcion=servicio_data.descripcion,
+        precio_fijo=servicio_data.precio_fijo,
+        oficio_id=servicio_data.oficio_id,
+        profesional_id=professional.id
+    )
+    
+    db.add(nuevo_servicio)
+    db.commit()
+    db.refresh(nuevo_servicio)
+    
+    return nuevo_servicio
+
+@app.get("/profesional/servicios/me", response_model=List[ServicioInstantaneoRead])
+async def listar_mis_servicios(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Listar todos los servicios/proyectos publicados por el profesional autenticado.
+    """
+    if current_user.rol not in [UserRole.PROFESIONAL, UserRole.ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los profesionales pueden ver sus servicios"
+        )
+    
+    professional = db.query(Professional).filter(
+        Professional.user_id == current_user.id
+    ).first()
+    
+    if not professional:
+        # Si es ADMIN, crear perfil profesional automáticamente
+        if current_user.rol == UserRole.ADMIN:
+            professional = Professional(
+                user_id=current_user.id,
+                nivel='ORO',
+                puntos_xp=5000,
+                comision_porcentaje=10.0
+            )
+            db.add(professional)
+            db.commit()
+            db.refresh(professional)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Perfil profesional no encontrado"
+            )
+    
+    servicios = db.query(ServicioInstantaneo).filter(
+        ServicioInstantaneo.profesional_id == professional.id
+    ).all()
+    
+    return servicios
+
+@app.put("/profesional/servicios/{servicio_id}", response_model=ServicioInstantaneoRead)
+async def actualizar_servicio(
+    servicio_id: str,
+    servicio_data: ServicioInstantaneoUpdate,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Actualizar un servicio/proyecto publicado.
+    Solo el profesional dueño o admin puede actualizar.
+    """
+    if current_user.rol not in [UserRole.PROFESIONAL, UserRole.ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los profesionales pueden actualizar servicios"
+        )
+    
+    professional = db.query(Professional).filter(
+        Professional.user_id == current_user.id
+    ).first()
+    
+    if not professional:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Perfil profesional no encontrado"
+        )
+    
+    servicio = db.query(ServicioInstantaneo).filter(
+        ServicioInstantaneo.id == servicio_id,
+        ServicioInstantaneo.profesional_id == professional.id
+    ).first()
+    
+    if not servicio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Servicio no encontrado o no tienes permiso para modificarlo"
+        )
+    
+    # Actualizar campos
+    if servicio_data.nombre is not None:
+        servicio.nombre = servicio_data.nombre
+    if servicio_data.descripcion is not None:
+        servicio.descripcion = servicio_data.descripcion
+    if servicio_data.precio_fijo is not None:
+        servicio.precio_fijo = servicio_data.precio_fijo
+    
+    db.commit()
+    db.refresh(servicio)
+    
+    return servicio
+
+@app.delete("/profesional/servicios/{servicio_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_servicio(
+    servicio_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Eliminar un servicio/proyecto publicado.
+    Solo el profesional dueño o admin puede eliminar.
+    """
+    if current_user.rol not in [UserRole.PROFESIONAL, UserRole.ADMIN]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los profesionales pueden eliminar servicios"
+        )
+    
+    professional = db.query(Professional).filter(
+        Professional.user_id == current_user.id
+    ).first()
+    
+    if not professional:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Perfil profesional no encontrado"
+        )
+    
+    servicio = db.query(ServicioInstantaneo).filter(
+        ServicioInstantaneo.id == servicio_id,
+        ServicioInstantaneo.profesional_id == professional.id
+    ).first()
+    
+    if not servicio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Servicio no encontrado o no tienes permiso para eliminarlo"
+        )
+    
+    db.delete(servicio)
+    db.commit()
+    
+    return None
+
+@app.get("/servicios", response_model=List[ServicioInstantaneoRead])
+async def listar_servicios_publicos(
+    oficio_id: Optional[str] = Query(None, description="Filtrar por oficio"),
+    db: Session = Depends(get_db)
+):
+    """
+    Listar todos los servicios/proyectos publicados (Marketplace público).
+    Puede filtrar por oficio_id.
+    """
+    query = db.query(ServicioInstantaneo)
+    
+    if oficio_id:
+        query = query.filter(ServicioInstantaneo.oficio_id == oficio_id)
+    
+    servicios = query.all()
+    
+    # Enriquecer con información del profesional y oficio
+    resultado = []
+    for servicio in servicios:
+        servicio_dict = {
+            "id": servicio.id,
+            "nombre": servicio.nombre,
+            "descripcion": servicio.descripcion,
+            "precio_fijo": servicio.precio_fijo,
+            "oficio_id": servicio.oficio_id,
+            "profesional_id": servicio.profesional_id,
+            "fecha_creacion": servicio.fecha_creacion,
+            "profesional": {
+                "id": servicio.profesional.id,
+                "user_id": servicio.profesional.user_id,
+                "nombre": servicio.profesional.user.full_name if servicio.profesional.user else None,
+                "email": servicio.profesional.user.email if servicio.profesional.user else None,
+                "nivel": servicio.profesional.nivel.value if servicio.profesional.nivel else None,
+                "rating_promedio": float(servicio.profesional.rating_promedio) if servicio.profesional.rating_promedio else 0.0,
+            } if servicio.profesional else None,
+            "oficio": {
+                "id": servicio.oficio.id,
+                "nombre": servicio.oficio.nombre,
+                "categoria": servicio.oficio.categoria,
+            } if servicio.oficio else None,
+        }
+        resultado.append(servicio_dict)
+    
+    return resultado
 
 if __name__ == "__main__":
     import uvicorn

@@ -5,13 +5,22 @@ Incluye soporte para PostGIS mediante GeoAlchemy2.
 from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 from .config import settings
 
-# Crear el engine de SQLAlchemy
+# Crear el engine de SQLAlchemy con configuración mejorada para Supabase
 engine = create_engine(
     settings.get_database_url(),
-    pool_pre_ping=True,  # Verifica la conexión antes de usarla
+    poolclass=NullPool,  # Usar NullPool para evitar problemas de conexión con Supabase Pooler
     echo=settings.DEBUG,  # Log de queries SQL en modo debug
+    connect_args={
+        "sslmode": "require",
+        "connect_timeout": 10,
+        "keepalives": 1,
+        "keepalives_idle": 30,
+        "keepalives_interval": 10,
+        "keepalives_count": 5,
+    }
 )
 
 # Habilitar la extensión PostGIS automáticamente

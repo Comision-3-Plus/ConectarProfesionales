@@ -191,6 +191,56 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
+      {/* Accesos Rápidos de Admin */}
+      <div>
+        <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4">
+          🚀 Accesos Rápidos (Acceso Total)
+        </h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          <Link href="/dashboard/profesional/publicar">
+            <Card className="hover:shadow-lg transition-all cursor-pointer border-2 border-transparent hover:border-blue-500">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Wrench className="h-5 w-5 text-blue-600" />
+                  Publicar Servicio
+                </CardTitle>
+                <CardDescription>
+                  Publica un servicio instantáneo como profesional
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+
+          <Link href="/dashboard/cliente">
+            <Card className="hover:shadow-lg transition-all cursor-pointer border-2 border-transparent hover:border-green-500">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Briefcase className="h-5 w-5 text-green-600" />
+                  Vista Cliente
+                </CardTitle>
+                <CardDescription>
+                  Explora profesionales y gestiona trabajos
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+
+          <Link href="/dashboard/profesional">
+            <Card className="hover:shadow-lg transition-all cursor-pointer border-2 border-transparent hover:border-purple-500">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <UserCheck className="h-5 w-5 text-purple-600" />
+                  Vista Profesional
+                </CardTitle>
+                <CardDescription>
+                  Gestiona ofertas, trabajos y perfil profesional
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </Link>
+        </div>
+      </div>
+
       {/* Métricas Principales - Financial */}
       <div>
         <h2 className="text-xl font-semibold text-slate-900 dark:text-white mb-4">

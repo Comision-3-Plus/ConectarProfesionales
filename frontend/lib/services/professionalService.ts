@@ -13,6 +13,8 @@ import {
   OficioRead,
   ProfessionalServiciosInstantUpdate,
   ServicioInstantaneoRead,
+  ServicioInstantaneoCreate,
+  ServicioInstantaneoUpdate,
   PortfolioItemCreate,
   PortfolioItemRead,
   OfertaCreate,
@@ -191,5 +193,50 @@ export const professionalService = {
   listPortfolio: async (): Promise<PortfolioItemRead[]> => {
     const response = await api.get<PortfolioItemRead[]>('/professional/portfolio');
     return response.data;
+  },
+
+  // ==========================================
+  // SERVICIOS/PROYECTOS PUBLICADOS
+  // ==========================================
+
+  /**
+   * POST /api/v1/profesional/servicios
+   * Publicar un nuevo servicio/proyecto
+   */
+  publicarProyecto: async (proyectoData: ServicioInstantaneoCreate): Promise<ServicioInstantaneoRead> => {
+    const response = await api.post<ServicioInstantaneoRead>('/profesional/servicios', proyectoData);
+    return response.data;
+  },
+
+  /**
+   * GET /api/v1/profesional/servicios/me
+   * Obtener mis proyectos publicados
+   */
+  getMisProyectosPublicados: async (): Promise<ServicioInstantaneoRead[]> => {
+    const response = await api.get<ServicioInstantaneoRead[]>('/profesional/servicios/me');
+    return response.data;
+  },
+
+  /**
+   * PUT /api/v1/profesional/servicios/{servicio_id}
+   * Actualizar un proyecto publicado
+   */
+  actualizarProyecto: async (
+    servicioId: string,
+    proyectoData: ServicioInstantaneoUpdate
+  ): Promise<ServicioInstantaneoRead> => {
+    const response = await api.put<ServicioInstantaneoRead>(
+      `/profesional/servicios/${servicioId}`,
+      proyectoData
+    );
+    return response.data;
+  },
+
+  /**
+   * DELETE /api/v1/profesional/servicios/{servicio_id}
+   * Eliminar un proyecto publicado
+   */
+  eliminarProyecto: async (servicioId: string): Promise<void> => {
+    await api.delete(`/profesional/servicios/${servicioId}`);
   },
 };

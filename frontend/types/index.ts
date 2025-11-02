@@ -179,25 +179,53 @@ export interface ProfessionalOficiosUpdate {
 
 // ============================================================================
 // SERVICIO INSTANTANEO SCHEMAS (app/schemas/servicio_instantaneo.py)
+// También conocidos como "Proyectos Publicados" en el frontend
 // ============================================================================
 
 export interface ServicioInstantaneoCreate {
   nombre: string;
-  descripcion: string;
+  descripcion?: string;
+  precio_fijo: number;
   oficio_id: string; // UUID
+}
+
+export interface ServicioInstantaneoUpdate {
+  nombre?: string;
+  descripcion?: string;
+  precio_fijo?: number;
 }
 
 export interface ServicioInstantaneoRead {
   id: string; // UUID
   nombre: string;
-  descripcion: string;
+  descripcion?: string;
+  precio_fijo: number;
   oficio_id: string; // UUID
+  profesional_id: string; // UUID
   fecha_creacion: string;
+  profesional?: {
+    id: string;
+    user_id: string;
+    nombre?: string;
+    email?: string;
+    nivel?: string;
+    rating_promedio?: number;
+  };
+  oficio?: {
+    id: string;
+    nombre: string;
+    categoria?: string;
+  };
 }
 
 export interface ProfessionalServiciosInstantUpdate {
   servicio_ids: string[]; // UUIDs
 }
+
+// Alias para el frontend (proyecto publicado = servicio instantáneo)
+export type ProyectoPublicadoCreate = ServicioInstantaneoCreate;
+export type ProyectoPublicadoRead = ServicioInstantaneoRead;
+export type ProyectoPublicadoUpdate = ServicioInstantaneoUpdate;
 
 // ============================================================================
 // PORTFOLIO SCHEMAS (app/schemas/portfolio.py)

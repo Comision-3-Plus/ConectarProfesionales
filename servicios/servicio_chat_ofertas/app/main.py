@@ -641,6 +641,136 @@ async def get_professional_resenas(
     
     return resenas
 
+# ============================================================================
+# CONTRATACIÓN INSTANTÁNEA DE SERVICIOS PUBLICADOS
+# ============================================================================
+
+from shared.models.servicio_instantaneo import ServicioInstantaneo
+from shared.schemas.oferta import OfertaAcceptResponse
+import requests
+
+@app.post("/cliente/servicios/{servicio_id}/contratar", response_model=OfertaAcceptResponse)
+async def contratar_servicio_instantaneo(
+    servicio_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    El cliente contrata un servicio/proyecto publicado por un profesional.
+    Esto crea automáticamente:
+    1. Un chat entre cliente y profesional
+    2. Una oferta por el precio_fijo del servicio
+    3. Acepta automáticamente la oferta
+    4. Genera el link de pago de MercadoPago
+    """
+    if current_user.role != UserRole.CLIENTE:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los clientes pueden contratar servicios"
+        )
+    
+    # Obtener el servicio
+    servicio = db.query(ServicioInstantaneo).filter(
+        ServicioInstantaneo.id == servicio_id
+    ).first()
+    
+    if not servicio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Servicio no encontrado"
+        )
+    
+    # Obtener el profesional
+    professional = db.query(Professional).filter(
+        Professional.id == servicio.profesional_id
+    ).first()
+    
+    if not professional:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profesional no encontrado"
+        )
+    
+    try:
+        # 1. Crear o obtener conversación
+        conversation = await chat_service.create_or_get_conversation(
+            current_user.id,
+            professional.user_id
+        )
+        
+        # 2. Crear la oferta automáticamente
+        nueva_oferta = Oferta(
+            professional_id=professional.id,
+            client_id=current_user.id,
+            conversation_id=conversation["id"],
+            titulo=f"Contratación: {servicio.nombre}",
+            descripcion=servicio.descripcion or "Servicio contratado directamente",
+            precio_ofertado=servicio.precio_fijo,
+            plazo_dias=7,  # Plazo por defecto
+            estado=OfertaEstado.PENDIENTE
+        )
+        
+        db.add(nueva_oferta)
+        db.commit()
+        db.refresh(nueva_oferta)
+        
+        # 3. Aceptar automáticamente la oferta
+        # Esto genera el Trabajo y el link de pago
+        oferta_aceptada = db.query(Oferta).filter(Oferta.id == nueva_oferta.id).first()
+        oferta_aceptada.estado = OfertaEstado.ACEPTADA
+        
+        # Crear el Trabajo
+        nuevo_trabajo = Trabajo(
+            oferta_id=oferta_aceptada.id,
+            professional_id=professional.id,
+            client_id=current_user.id,
+            titulo=oferta_aceptada.titulo,
+            descripcion=oferta_aceptada.descripcion,
+            precio_acordado=oferta_aceptada.precio_ofertado,
+            estado=TrabajoEstado.PENDIENTE_PAGO,
+            escrow_estado=EscrowEstado.RETENIDO
+        )
+        
+        db.add(nuevo_trabajo)
+        db.commit()
+        db.refresh(nuevo_trabajo)
+        
+        # 4. Generar link de pago de MercadoPago
+        # Llamar al servicio de pagos
+        try:
+            payment_response = requests.post(
+                "http://servicio_pagos:8005/payments/create-preference",
+                json={
+                    "trabajo_id": str(nuevo_trabajo.id),
+                    "monto": float(nuevo_trabajo.precio_acordado),
+                    "titulo": nuevo_trabajo.titulo,
+                    "descripcion": nuevo_trabajo.descripcion or "Pago por servicio"
+                },
+                headers={"Authorization": f"Bearer {current_user.id}"}  # Simplificado
+            )
+            
+            if payment_response.status_code == 200:
+                payment_data = payment_response.json()
+                payment_link = payment_data.get("init_point")
+            else:
+                payment_link = None
+        except Exception as e:
+            logger.error(f"Error al generar link de pago: {e}")
+            payment_link = None
+        
+        return OfertaAcceptResponse(
+            trabajo=nuevo_trabajo,
+            payment_link=payment_link
+        )
+        
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error al contratar servicio: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al contratar servicio: {str(e)}"
+        )
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8004)
