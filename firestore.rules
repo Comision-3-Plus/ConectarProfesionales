@@ -1,37 +1,135 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Reglas para los chats
+    
+    // =========================================================================
+    // FUNCIONES AUXILIARES
+    // =========================================================================
+    
+    // Verificar que el usuario está autenticado
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Verificar que es el usuario actual
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // Verificar si es participante del chat (compatibilidad con estructura existente y nueva)
+    function isParticipant(chatId) {
+      let chatData = get(/databases/$(database)/documents/chats/$(chatId)).data;
+      return isSignedIn() && (
+        request.auth.uid in chatData.get('participants', []) ||
+        request.auth.uid in chatData.get('participantIds', [])
+      );
+    }
+    
+    // Verificar que los participants incluyen al usuario actual
+    function isInParticipants(participants) {
+      return isSignedIn() && request.auth.uid in participants;
+    }
+    
+    // =========================================================================
+    // REGLAS PARA CHATS (Compatibilidad con ambas estructuras)
+    // =========================================================================
+    
     match /chats/{chatId} {
       // Los usuarios autenticados pueden leer el chat si son participantes
-      allow read: if request.auth != null && 
-                     request.auth.uid in resource.data.participantIds;
+      allow read: if isParticipant(chatId);
       
       // Los usuarios pueden crear chats
-      allow create: if request.auth != null &&
-                       request.auth.uid in request.resource.data.participantIds;
+      allow create: if isSignedIn() && (
+        isInParticipants(request.resource.data.get('participants', [])) ||
+        request.auth.uid in request.resource.data.get('participantIds', [])
+      );
       
       // Los usuarios pueden actualizar chats si son participantes
-      allow update: if request.auth != null && 
-                       request.auth.uid in resource.data.participantIds;
+      allow update: if isParticipant(chatId);
       
-      // Reglas para los mensajes dentro de un chat
+      // No permitir eliminar chats
+      allow delete: if false;
+      
+      // ======================================================================
+      // MENSAJES DENTRO DEL CHAT (Estructura antigua)
+      // ======================================================================
       match /messages/{messageId} {
         // Los participantes del chat pueden leer los mensajes
-        allow read: if request.auth != null && 
-                       request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds;
+        allow read: if isParticipant(chatId);
         
         // Los participantes pueden crear mensajes
-        allow create: if request.auth != null && 
-                         request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantIds &&
-                         request.resource.data.senderId == request.auth.uid;
+        allow create: if isSignedIn() && 
+          isParticipant(chatId) &&
+          request.resource.data.senderId == request.auth.uid;
         
-        // Solo las Cloud Functions pueden actualizar mensajes (para censura)
-        allow update: if false;
+        // Solo permitir actualizar campo 'read'
+        allow update: if isParticipant(chatId) && 
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
         
         // Los usuarios no pueden eliminar mensajes
         allow delete: if false;
       }
+    }
+    
+    // =========================================================================
+    // MENSAJES (Estructura nueva: /messages/{chatId}/messages/{messageId})
+    // =========================================================================
+    
+    match /messages/{chatId}/messages/{messageId} {
+      // Leer: solo participantes del chat
+      allow read: if isParticipant(chatId);
+      
+      // Crear: solo participantes y el senderId debe ser el usuario actual
+      allow create: if isSignedIn() && 
+        isParticipant(chatId) && 
+        request.auth.uid == request.resource.data.senderId;
+      
+      // Actualizar: solo para marcar como leído
+      allow update: if isParticipant(chatId) && 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      
+      // No permitir eliminar mensajes
+      allow delete: if false;
+    }
+    
+    // =========================================================================
+    // USER_CHATS (Índice de chats por usuario)
+    // =========================================================================
+    
+    match /user_chats/{userId}/{chatId} {
+      // Leer: solo el propio usuario
+      allow read: if isOwner(userId);
+      
+      // Crear/Actualizar: solo el propio usuario
+      allow write: if isOwner(userId);
+      
+      // No permitir eliminar
+      allow delete: if false;
+    }
+    
+    // =========================================================================
+    // FCM TOKENS (Notificaciones Push)
+    // =========================================================================
+    
+    match /fcm_tokens/{userId} {
+      // Leer: solo el propio usuario
+      allow read: if isOwner(userId);
+      
+      // Escribir: solo el propio usuario
+      allow write: if isOwner(userId);
+    }
+    
+    // =========================================================================
+    // USER METADATA (Opcional)
+    // =========================================================================
+    
+    match /user_metadata/{userId} {
+      // Leer: cualquier usuario autenticado
+      allow read: if isSignedIn();
+      
+      // Escribir: solo el propio usuario
+      allow write: if isOwner(userId);
     }
   }
 }

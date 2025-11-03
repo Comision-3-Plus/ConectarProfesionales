@@ -1,29 +1,19 @@
 /**
  * Hook para gestionar un chat individual
- * Maneja mensajes en tiempo real con Firebase Realtime Database
+ * Maneja mensajes en tiempo real con Firestore
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { ref, onValue, push, set, query, orderByChild, limitToLast } from 'firebase/database';
-import { database } from '@/lib/firebase';
+import { chatService, Message } from '@/lib/firebase/chat.service';
+import { Unsubscribe } from 'firebase/firestore';
 import { useAuthStore } from '@/store/authStore';
 import { toast } from 'sonner';
 
-export interface Message {
-  id: string;
-  sender_id: string;
-  sender_nombre: string;
-  text: string;
-  timestamp: number;
-  read: boolean;
-}
-
 export interface UseChatOptions {
-  chatId: string;
-  limit?: number;
+  chatId: string | null;
 }
 
-export const useChat = ({ chatId, limit = 50 }: UseChatOptions) => {
+export const useChat = ({ chatId }: UseChatOptions) => {
   const { user } = useAuthStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,43 +27,35 @@ export const useChat = ({ chatId, limit = 50 }: UseChatOptions) => {
       return;
     }
 
-    const messagesRef = ref(database, `chats/${chatId}/messages`);
-    const messagesQuery = query(
-      messagesRef,
-      orderByChild('timestamp'),
-      limitToLast(limit)
-    );
+    setIsLoading(true);
+    setError(null);
 
-    const unsubscribe = onValue(
-      messagesQuery,
-      (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          const messagesList: Message[] = Object.entries(data).map(
-            ([id, msg]) => ({
-              id,
-              ...(msg as Omit<Message, 'id'>),
-            })
-          );
-          // Ordenar por timestamp ascendente
-          messagesList.sort((a, b) => a.timestamp - b.timestamp);
-          setMessages(messagesList);
-        } else {
-          setMessages([]);
+    let unsubscribe: Unsubscribe | undefined;
+
+    try {
+      unsubscribe = chatService.subscribeToMessages(
+        chatId,
+        (msgs) => {
+          setMessages(msgs);
+          setIsLoading(false);
+        },
+        (err) => {
+          setError(err.message);
+          setIsLoading(false);
+          toast.error('Error al cargar mensajes');
         }
-        setIsLoading(false);
-        setError(null);
-      },
-      (err) => {
-        console.error('Error al escuchar mensajes:', err);
-        setError('Error al cargar mensajes');
-        setIsLoading(false);
-        toast.error('Error al cargar mensajes');
-      }
-    );
+      );
+    } catch (err) {
+      setError((err as Error).message);
+      setIsLoading(false);
+    }
 
-    return () => unsubscribe();
-  }, [chatId, limit]);
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [chatId]);
 
   // Enviar mensaje
   const sendMessage = useCallback(
@@ -82,27 +64,13 @@ export const useChat = ({ chatId, limit = 50 }: UseChatOptions) => {
 
       setIsSending(true);
       try {
-        const messagesRef = ref(database, `chats/${chatId}/messages`);
-        const newMessageRef = push(messagesRef);
-        
-        const messageData: Omit<Message, 'id'> = {
-          sender_id: user.id,
-          sender_nombre: `${user.nombre} ${user.apellido}`,
-          text: text.trim(),
-          timestamp: Date.now(),
-          read: false,
-        };
-
-        await set(newMessageRef, messageData);
-
-        // Actualizar metadata del chat
-        const metadataRef = ref(database, `chats/${chatId}/metadata`);
-        const metadataUpdate = {
-          last_message: text.trim().substring(0, 100),
-          last_message_time: Date.now(),
-        };
-        await set(metadataRef, metadataUpdate);
-
+        await chatService.sendMessage(
+          chatId,
+          user.id,
+          text.trim(),
+          `${user.nombre} ${user.apellido}`,
+          undefined
+        );
         setError(null);
       } catch (err) {
         console.error('Error al enviar mensaje:', err);
@@ -115,23 +83,43 @@ export const useChat = ({ chatId, limit = 50 }: UseChatOptions) => {
     [user, chatId]
   );
 
+  // Enviar mensaje con imagen
+  const sendImageMessage = useCallback(
+    async (imageUrl: string, caption: string = '') => {
+      if (!user || !chatId) return;
+
+      setIsSending(true);
+      try {
+        await chatService.sendImageMessage(
+          chatId,
+          user.id,
+          imageUrl,
+          caption,
+          `${user.nombre} ${user.apellido}`,
+          undefined
+        );
+        setError(null);
+      } catch (err) {
+        console.error('Error al enviar imagen:', err);
+        setError('Error al enviar imagen');
+        toast.error('Error al enviar imagen');
+      } finally {
+        setIsSending(false);
+      }
+    },
+    [user, chatId]
+  );
+
   // Marcar mensajes como leídos
   const markAsRead = useCallback(async () => {
     if (!user || !chatId) return;
 
     try {
-      const unreadMessages = messages.filter(
-        (msg) => !msg.read && msg.sender_id !== user.id
-      );
-
-      for (const msg of unreadMessages) {
-        const messageRef = ref(database, `chats/${chatId}/messages/${msg.id}`);
-        await set(messageRef, { ...msg, read: true });
-      }
+      await chatService.markMessagesAsRead(chatId, user.id);
     } catch (err) {
       console.error('Error al marcar mensajes como leídos:', err);
     }
-  }, [user, chatId, messages]);
+  }, [user, chatId]);
 
   return {
     messages,
@@ -139,6 +127,7 @@ export const useChat = ({ chatId, limit = 50 }: UseChatOptions) => {
     isSending,
     error,
     sendMessage,
+    sendImageMessage,
     markAsRead,
   };
 };

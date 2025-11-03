@@ -1,0 +1,4 @@
+# Firebase Admin SDK
+# Instalar con: pip install firebase-admin google-cloud-firestore
+firebase-admin==6.2.0
+google-cloud-firestore==2.13.1

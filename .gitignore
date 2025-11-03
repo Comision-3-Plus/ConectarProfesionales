@@ -23,6 +23,11 @@ wheels/
 
 # Environment variables
 .env
+.env.local
+
+# Firebase
+firebase-service-account.json
+*-firebase-adminsdk-*.json
 
 # Docker
 .dockerignore

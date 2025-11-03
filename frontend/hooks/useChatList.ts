@@ -1,32 +1,14 @@
 /**
  * Hook para gestionar la lista de chats de un usuario
+ * Actualizado para usar Firestore
  */
 
 import { useState, useEffect } from 'react';
-import { ref, onValue } from 'firebase/database';
-import { database } from '@/lib/firebase';
+import { chatService, UserChat } from '@/lib/firebase/chat.service';
+import { Unsubscribe } from 'firebase/firestore';
 import { useAuthStore } from '@/store/authStore';
 
-interface ChatMetadata {
-  cliente_id?: string;
-  profesional_id?: string;
-  cliente_nombre?: string;
-  profesional_nombre?: string;
-  last_message?: string;
-  last_message_time?: number;
-}
-
-interface ChatMessage {
-  sender_id: string;
-  read: boolean;
-}
-
-interface ChatData {
-  metadata?: ChatMetadata;
-  participants?: Record<string, boolean>;
-  messages?: Record<string, ChatMessage>;
-}
-
+// Mantener interfaz existente para compatibilidad
 export interface ChatInfo {
   id: string;
   cliente_id: string;
@@ -38,6 +20,14 @@ export interface ChatInfo {
   unread_count: number;
   other_user_name: string;
   other_user_id: string;
+  chatId: string; // Agregado para compatibilidad
+  otherUserName?: string; // Agregado para compatibilidad
+  otherUserPhoto?: string; // Agregado para compatibilidad
+  otherUserId?: string; // Agregado para compatibilidad
+  trabajoId?: string; // Agregado para compatibilidad
+  lastMessage?: string; // Agregado para compatibilidad
+  lastMessageTime?: any; // Agregado para compatibilidad
+  unreadCount?: number; // Agregado para compatibilidad
 }
 
 export const useChatList = () => {
@@ -52,73 +42,63 @@ export const useChatList = () => {
       return;
     }
 
-    const chatsRef = ref(database, 'chats');
-    
-    const unsubscribe = onValue(
-      chatsRef,
-      (snapshot) => {
-        const data = snapshot.val();
-        if (data) {
-          const chatsList: ChatInfo[] = [];
-          let unreadCount = 0;
+    setIsLoading(true);
 
-          Object.entries(data).forEach(([chatId, chatData]) => {
-            const typedChatData = chatData as ChatData;
-            const metadata = typedChatData.metadata || {};
-            const participants = typedChatData.participants || {};
-            
-            // Verificar si el usuario actual es participante
-            if (participants[user.id]) {
-              // Determinar el otro usuario
-              const isCliente = metadata.cliente_id === user.id;
-              const otherUserId = isCliente 
-                ? metadata.profesional_id || ''
-                : metadata.cliente_id || '';
-              const otherUserName = isCliente
-                ? metadata.profesional_nombre || 'Profesional'
-                : metadata.cliente_nombre || 'Cliente';
+    let unsubscribe: Unsubscribe | undefined;
 
-              // Contar mensajes no leídos
-              const messages = typedChatData.messages || {};
-              const unreadMessages = Object.values(messages).filter(
-                (msg) => !msg.read && msg.sender_id !== user.id
-              ).length;
-
-              chatsList.push({
-                id: chatId,
-                cliente_id: metadata.cliente_id || '',
-                profesional_id: metadata.profesional_id || '',
-                cliente_nombre: metadata.cliente_nombre || '',
-                profesional_nombre: metadata.profesional_nombre || '',
-                last_message: metadata.last_message || '',
-                last_message_time: metadata.last_message_time || 0,
-                unread_count: unreadMessages,
-                other_user_name: otherUserName,
-                other_user_id: otherUserId,
-              });
-
-              unreadCount += unreadMessages;
-            }
-          });
-
-          // Ordenar por último mensaje (más reciente primero)
-          chatsList.sort((a, b) => b.last_message_time - a.last_message_time);
-
+    try {
+      unsubscribe = chatService.subscribeToUserChats(
+        user.id,
+        (userChats: UserChat[]) => {
+          // Convertir UserChat[] a ChatInfo[] para mantener compatibilidad
+          const chatsList: ChatInfo[] = userChats.map((chat) => ({
+            id: chat.id,
+            chatId: chat.chatId || chat.id,
+            cliente_id: '',
+            profesional_id: '',
+            cliente_nombre: '',
+            profesional_nombre: '',
+            last_message: chat.lastMessage || '',
+            last_message_time: chat.lastMessageTime?.seconds || 0,
+            unread_count: chat.unreadCount || 0,
+            other_user_name: chat.otherUserName || 'Usuario',
+            other_user_id: chat.otherUserId || '',
+            // Campos adicionales para nueva interfaz
+            otherUserName: chat.otherUserName,
+            otherUserPhoto: chat.otherUserPhoto,
+            otherUserId: chat.otherUserId,
+            trabajoId: chat.trabajoId,
+            lastMessage: chat.lastMessage,
+            lastMessageTime: chat.lastMessageTime,
+            unreadCount: chat.unreadCount,
+          }));
+          
           setChats(chatsList);
+          
+          // Calcular total de mensajes no leídos
+          const unreadCount = chatsList.reduce(
+            (acc, chat) => acc + (chat.unread_count || 0),
+            0
+          );
           setTotalUnread(unreadCount);
-        } else {
-          setChats([]);
-          setTotalUnread(0);
+          
+          setIsLoading(false);
+        },
+        (err) => {
+          console.error('Error al cargar chats:', err);
+          setIsLoading(false);
         }
-        setIsLoading(false);
-      },
-      (error) => {
-        console.error('Error al cargar chats:', error);
-        setIsLoading(false);
-      }
-    );
+      );
+    } catch (err) {
+      console.error('Error al suscribirse a chats:', err);
+      setIsLoading(false);
+    }
 
-    return () => unsubscribe();
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [user]);
 
   return {

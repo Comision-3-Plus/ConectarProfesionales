@@ -10,6 +10,10 @@ import httpx
 import os
 from typing import Optional
 import time
+import sys
+
+# Agregar path de shared para importar Firebase endpoints
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'shared'))
 
 app = FastAPI(
     title="ConectarProfesionales - API Gateway",
@@ -392,6 +396,20 @@ async def gateway_route(path: str, request: Request):
 async def shutdown_event():
     """Cerrar cliente HTTP al apagar"""
     await http_client.aclose()
+
+
+# ============================================================================
+# FIREBASE ENDPOINTS (Integración directa)
+# ============================================================================
+
+try:
+    from shared.firebase.endpoints import router as firebase_router
+    app.include_router(firebase_router, prefix="/api/v1", tags=["Firebase"])
+    print("✅ Firebase endpoints integrados en API Gateway")
+except Exception as e:
+    print(f"⚠️ No se pudieron cargar Firebase endpoints: {e}")
+    print("   Firebase funcionará cuando se configuren las credenciales")
+
 
 if __name__ == "__main__":
     import uvicorn
