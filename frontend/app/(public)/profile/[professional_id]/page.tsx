@@ -9,9 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PortfolioGallery } from '@/components/features/PortfolioGallery';
-import { Star, MessageCircle, DollarSign } from 'lucide-react';
+import { ReviewsList } from '@/components/reviews/ReviewsList';
+import { Star, MessageCircle, DollarSign, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
+import { chatService } from '@/lib/services/chatService';
+import { toast } from 'sonner';
+import { useState } from 'react';
 
 export default function ProfessionalProfilePage({
   params,
@@ -20,21 +24,42 @@ export default function ProfessionalProfilePage({
 }) {
   const resolvedParams = use(params);
   const professionalId = parseInt(resolvedParams.professional_id);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user: currentUser } = useAuth();
   const router = useRouter();
+  const [contactLoading, setContactLoading] = useState(false);
 
   const { data: professional, isLoading } = useQuery({
     queryKey: ['professional', professionalId],
     queryFn: () => publicService.getProfessionalProfile(professionalId.toString()),
   });
 
-  const handleContactClick = () => {
-    if (!isAuthenticated) {
+  const handleContactClick = async () => {
+    if (!isAuthenticated || !currentUser) {
       router.push('/login');
       return;
     }
-    // TODO: Implementar navegación al chat
-    router.push(`/dashboard/cliente?chat=${professionalId}`);
+
+    if (!professional) return;
+
+    setContactLoading(true);
+    try {
+      // Crear o obtener conversación en Firebase
+      const chatId = await chatService.createOrGetConversation(
+        currentUser.id,
+        professionalId.toString(),
+        `${currentUser.nombre} ${currentUser.apellido}`,
+        `${professional.nombre} ${professional.apellido}`
+      );
+
+      // Redirigir al chat
+      router.push(`/chat/${chatId}`);
+      toast.success('Chat iniciado');
+    } catch (error) {
+      console.error('Error al crear chat:', error);
+      toast.error('Error al iniciar chat. Por favor intenta de nuevo.');
+    } finally {
+      setContactLoading(false);
+    }
   };
 
   if (isLoading) {
@@ -147,9 +172,19 @@ export default function ProfessionalProfilePage({
                   onClick={handleContactClick}
                   className="w-full bg-orange-500 hover:bg-orange-600"
                   size="lg"
+                  disabled={contactLoading}
                 >
-                  <MessageCircle className="mr-2 h-5 w-5" />
-                  Contactar
+                  {contactLoading ? (
+                    <>
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                      Conectando...
+                    </>
+                  ) : (
+                    <>
+                      <MessageCircle className="mr-2 h-5 w-5" />
+                      Contactar
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
@@ -182,12 +217,10 @@ export default function ProfessionalProfilePage({
                 <CardTitle>Reseñas de Clientes</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
-                  {/* TODO: Fetch and display reviews */}
-                  <p className="text-center text-slate-500">
-                    Las reseñas se cargarán desde la API
-                  </p>
-                </div>
+                <ReviewsList
+                  reviews={professional.resenas || []}
+                  profesionalNombre={`${professional.nombre} ${professional.apellido}`}
+                />
               </CardContent>
             </Card>
           </TabsContent>

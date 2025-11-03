@@ -20,7 +20,7 @@ import {
 import Link from "next/link"
 import Image from "next/image"
 import { useParams } from "next/navigation"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 
 interface Mensaje {
   id: string
@@ -97,9 +97,8 @@ const mockOfertas: Oferta[] = [
 export default function ChatDetailPage() {
   const params = useParams()
   const chatId = params.chatId as string
-  const { toast } = useToast()
   
-  const [chat, setChat] = useState<ChatData>(mockChat)
+  const [chat] = useState<ChatData>(mockChat)
   const [mensajes, setMensajes] = useState<Mensaje[]>(mockMensajes)
   const [ofertas, setOfertas] = useState<Oferta[]>(mockOfertas)
   const [nuevoMensaje, setNuevoMensaje] = useState("")
@@ -168,12 +167,8 @@ export default function ChatDetailPage() {
       }
       setMensajes([...mensajes, nuevoMensajeObj])
       setNuevoMensaje("")
-    } catch (error) {
-      toast({
-        title: "❌ Error",
-        description: "No se pudo enviar el mensaje",
-        variant: "destructive"
-      })
+    } catch {
+      toast.error("No se pudo enviar el mensaje")
     } finally {
       setEnviando(false)
     }
@@ -181,11 +176,7 @@ export default function ChatDetailPage() {
 
   const handleCrearOferta = async () => {
     if (!ofertaForm.descripcion.trim() || !ofertaForm.precio) {
-      toast({
-        title: "❌ Error",
-        description: "Completa todos los campos",
-        variant: "destructive"
-      })
+      toast.error("Completa todos los campos")
       return
     }
 
@@ -210,40 +201,27 @@ export default function ChatDetailPage() {
       }
       setOfertas([...ofertas, nuevaOferta])
 
-      toast({
-        title: "✅ Oferta enviada",
-        description: "El cliente recibirá tu oferta formal"
-      })
+      toast.success("✅ Oferta enviada - El cliente recibirá tu oferta formal")
 
       setShowCrearOferta(false)
       setOfertaForm({ descripcion: "", precio: "" })
-    } catch (error) {
-      toast({
-        title: "❌ Error",
-        description: "No se pudo enviar la oferta",
-        variant: "destructive"
-      })
+    } catch {
+      toast.error("No se pudo enviar la oferta")
     }
   }
 
-  const handleAceptarOferta = async (ofertaId: string) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const handleAceptarOferta = async (_ofertaId: string) => {
     try {
       // TODO: Aceptar oferta en backend
-      // const response = await fetchAPI(`/api/v1/cliente/ofertas/${ofertaId}/accept`, {
+      // const response = await fetchAPI(`/api/v1/cliente/ofertas/${_ofertaId}/accept`, {
       //   method: 'POST'
       // })
       // window.location.href = response.payment_url
 
-      toast({
-        title: "🚧 En desarrollo",
-        description: "Serás redirigido a MercadoPago para pagar"
-      })
-    } catch (error) {
-      toast({
-        title: "❌ Error",
-        description: "No se pudo aceptar la oferta",
-        variant: "destructive"
-      })
+      toast.info("🚧 En desarrollo - Serás redirigido a MercadoPago para pagar")
+    } catch {
+      toast.error("No se pudo aceptar la oferta")
     }
   }
 
@@ -258,16 +236,9 @@ export default function ChatDetailPage() {
         o.id === ofertaId ? { ...o, estado: "RECHAZADO" as const } : o
       ))
 
-      toast({
-        title: "Oferta rechazada",
-        description: "Se notificó al profesional"
-      })
-    } catch (error) {
-      toast({
-        title: "❌ Error",
-        description: "No se pudo rechazar la oferta",
-        variant: "destructive"
-      })
+      toast.success("Oferta rechazada - Se notificó al profesional")
+    } catch {
+      toast.error("No se pudo rechazar la oferta")
     }
   }
 
@@ -337,7 +308,7 @@ export default function ChatDetailPage() {
           {/* Ofertas integradas en el chat */}
           {ofertas.map((oferta) => (
             <div key={oferta.id} className="my-4">
-              <Card className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300">
+              <Card className="bg-linear-to-r from-green-50 to-blue-50 border-2 border-green-300">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-lg">
                     <DollarSign className="h-5 w-5" />

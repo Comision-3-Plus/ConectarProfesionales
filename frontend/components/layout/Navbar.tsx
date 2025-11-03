@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
@@ -14,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { chatService } from '@/lib/services/chatService';
 import { 
   Menu, 
   LogOut, 
@@ -27,12 +29,36 @@ import {
   Sparkles,
   Sun,
   Moon,
-  Shield
+  Shield,
+  MessageCircle
 } from 'lucide-react';
 
 export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
   const { theme, toggleTheme, mounted } = useTheme();
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Suscribirse a conversaciones para contar mensajes no leídos
+  useEffect(() => {
+    if (!user) {
+      setUnreadCount(0);
+      return;
+    }
+
+    try {
+      const unsubscribe = chatService.subscribeToConversations(user.id, (conversations) => {
+        const total = conversations.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0);
+        setUnreadCount(total);
+      });
+
+      return () => {
+        unsubscribe();
+      };
+    } catch {
+      console.warn('Chat no disponible - Firebase no configurado');
+      setUnreadCount(0);
+    }
+  }, [user]);
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b border-slate-200/50 dark:border-slate-700/50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm">
@@ -101,6 +127,30 @@ export function Navbar() {
                 <span className="font-medium">Ayuda</span>
               </Link>
             </Button>
+
+            {/* Chat Button (solo si está autenticado) */}
+            {isAuthenticated && (
+              <Button 
+                variant="ghost" 
+                asChild 
+                className="relative text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-all duration-200 group"
+              >
+                <Link href="/chat" className="flex items-center">
+                  <div className="relative">
+                    <MessageCircle className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
+                    {unreadCount > 0 && (
+                      <Badge 
+                        variant="destructive" 
+                        className="absolute -top-2 -right-1 h-5 min-w-[20px] flex items-center justify-center px-1 text-[10px] font-bold pointer-events-none"
+                      >
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </Badge>
+                    )}
+                  </div>
+                  <span className="font-medium">Mensajes</span>
+                </Link>
+              </Button>
+            )}
 
             <div className="ml-6 flex items-center space-x-3">
               {isAuthenticated ? (

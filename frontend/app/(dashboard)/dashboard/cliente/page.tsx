@@ -33,10 +33,13 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { GraficosGastos } from '@/components/features/GraficosGastos';
 import { ActividadReciente } from '@/components/features/ActividadReciente';
+import { CreateReviewDialog } from '@/components/reviews/CreateReviewDialog';
 
 export default function ClienteDashboardPage() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState('ofertas');
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
+  const [selectedTrabajoForReview, setSelectedTrabajoForReview] = useState<{id: string; profesionalNombre: string} | null>(null);
 
   // Queries
   const { data: trabajos, isLoading: trabajosLoading } = useQuery({
@@ -92,8 +95,9 @@ export default function ClienteDashboardPage() {
     router.push(`/dashboard/cliente/chat`);
   };
 
-  const handleReview = () => {
-    toast.info('Función de reseñas próximamente');
+  const handleReview = (trabajoId: string, profesionalNombre: string) => {
+    setSelectedTrabajoForReview({ id: trabajoId, profesionalNombre });
+    setReviewDialogOpen(true);
   };
 
   return (
@@ -388,6 +392,16 @@ export default function ClienteDashboardPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialog de Reseñas */}
+      {selectedTrabajoForReview && (
+        <CreateReviewDialog
+          open={reviewDialogOpen}
+          onOpenChange={setReviewDialogOpen}
+          trabajoId={selectedTrabajoForReview.id}
+          profesionalNombre={selectedTrabajoForReview.profesionalNombre}
+        />
+      )}
     </div>
   );
 }
@@ -487,7 +501,7 @@ function OfertaCard({ oferta, onAccept, onReject, onChat }: OfertaCardProps) {
 interface TrabajoCardProps {
   trabajo: TrabajoRead;
   onChat?: (profesionalId: string) => void;
-  onReview?: (trabajoId: string) => void;
+  onReview?: (trabajoId: string, profesionalNombre: string) => void;
   showActions?: boolean;
   showReviewButton?: boolean;
 }
@@ -568,7 +582,7 @@ function TrabajoCard({ trabajo, onChat, onReview, showActions, showReviewButton 
               <Button
                 size="sm"
                 className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
-                onClick={() => onReview(trabajo.id)}
+                onClick={() => onReview(trabajo.id, trabajo.profesional_nombre || 'Profesional')}
               >
                 <Star className="h-4 w-4 mr-1" />
                 Dejar Reseña

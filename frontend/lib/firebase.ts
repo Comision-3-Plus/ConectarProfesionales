@@ -14,16 +14,23 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-let app: FirebaseApp;
-let db: Firestore;
-let auth: Auth;
-let database: Database;
+let app: FirebaseApp | undefined;
+let db: Firestore | undefined;
+let auth: Auth | undefined;
+let database: Database | undefined;
 
-if (typeof window !== 'undefined') {
-  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-  db = getFirestore(app);
-  auth = getAuth(app);
-  database = getDatabase(app);
+// Solo inicializar si las credenciales están configuradas
+const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.projectId;
+
+if (typeof window !== 'undefined' && isFirebaseConfigured) {
+  try {
+    app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+    db = getFirestore(app);
+    auth = getAuth(app);
+    database = getDatabase(app);
+  } catch (error) {
+    console.warn('Firebase no está configurado correctamente. El chat estará deshabilitado.', error);
+  }
 }
 
 export { app, db, auth, database };
