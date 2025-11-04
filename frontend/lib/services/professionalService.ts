@@ -33,17 +33,17 @@ export const professionalService = {
   },
 
   /**
-   * PUT /api/v1/professional/profile
+   * PUT /api/v1/professional/me
    * Actualizar configuración del perfil profesional
    */
   updateProfile: async (profileData: ProfessionalProfileUpdate): Promise<ProfessionalProfileRead> => {
-    const response = await api.put<ProfessionalProfileRead>('/professional/profile', profileData);
+    const response = await api.put<ProfessionalProfileRead>('/professional/me', profileData);
     return response.data;
   },
 
   /**
-   * POST /api/v1/professional/kyc/upload
-   * Subir documentos KYC
+   * POST /api/v1/professional/kyc/submit
+   * Enviar documentación KYC
    */
   uploadKYC: async (files: File[]): Promise<{ status: string; message: string }> => {
     const formData = new FormData();
@@ -52,7 +52,7 @@ export const professionalService = {
     });
 
     const response = await api.post<{ status: string; message: string }>(
-      '/professional/kyc/upload',
+      '/professional/kyc/submit',
       formData,
       {
         headers: {
@@ -64,49 +64,51 @@ export const professionalService = {
   },
 
   /**
-   * PUT /api/v1/professional/profile/oficios
-   * Asignar oficios al profesional
+   * GET /api/v1/professional/kyc/status
+   * Obtener estado de verificación KYC
    */
-  updateOficios: async (oficiosData: ProfessionalOficiosUpdate): Promise<OficioRead[]> => {
-    const response = await api.put<OficioRead[]>('/professional/profile/oficios', oficiosData);
-    return response.data;
-  },
-
-  /**
-   * PUT /api/v1/professional/profile/servicios-instant
-   * Asignar servicios instantáneos al profesional
-   */
-  updateServiciosInstant: async (
-    serviciosData: ProfessionalServiciosInstantUpdate
-  ): Promise<ServicioInstantaneoRead[]> => {
-    const response = await api.put<ServicioInstantaneoRead[]>(
-      '/professional/profile/servicios-instant',
-      serviciosData
+  getKYCStatus: async (): Promise<{ kyc_status: string; verificado: boolean }> => {
+    const response = await api.get<{ kyc_status: string; verificado: boolean }>(
+      '/professional/kyc/status'
     );
     return response.data;
   },
 
   /**
-   * PUT /api/v1/professional/profile/location
+   * PUT /api/v1/professional/oficios (usa /professional/me)
+   * Actualizar oficios del profesional
+   */
+  updateOficios: async (oficios_ids: string[]): Promise<ProfessionalProfileRead> => {
+    const response = await api.put<ProfessionalProfileRead>('/professional/me', {
+      oficios_ids,
+    });
+    return response.data;
+  },
+
+  /**
+   * PUT /api/v1/professional/me (actualizar ubicación)
    * Actualizar ubicación geográfica del profesional
    */
-  updateLocation: async (locationData: ProfessionalLocationUpdate): Promise<ProfessionalProfileRead> => {
-    const response = await api.put<ProfessionalProfileRead>(
-      '/professional/profile/location',
-      locationData
-    );
+  updateLocation: async (locationData: {
+    direccion?: string;
+    latitud?: number;
+    longitud?: number;
+    radio_cobertura_km?: number;
+  }): Promise<ProfessionalProfileRead> => {
+    const response = await api.put<ProfessionalProfileRead>('/professional/me', locationData);
     return response.data;
   },
 
   /**
-   * PUT /api/v1/professional/payout-info
+   * PUT /api/v1/professional/me (actualizar info de pago)
    * Actualizar información de pago del profesional
    */
-  updatePayoutInfo: async (payoutData: PayoutInfoUpdate): Promise<{ status: string; message: string }> => {
-    const response = await api.put<{ status: string; message: string }>(
-      '/professional/payout-info',
-      payoutData
-    );
+  updatePayoutInfo: async (payoutData: {
+    tarifa_hora?: number;
+    moneda?: string;
+    metodos_pago?: string[];
+  }): Promise<ProfessionalProfileRead> => {
+    const response = await api.put<ProfessionalProfileRead>('/professional/me', payoutData);
     return response.data;
   },
 
@@ -192,6 +194,32 @@ export const professionalService = {
    */
   listPortfolio: async (): Promise<PortfolioItemRead[]> => {
     const response = await api.get<PortfolioItemRead[]>('/professional/portfolio');
+    return response.data;
+  },
+
+  // ==========================================
+  // ENDPOINTS PÚBLICOS
+  // ==========================================
+
+  /**
+   * GET /api/v1/public/professional/{prof_id}
+   * Ver perfil público de un profesional
+   */
+  getPublicProfile: async (professionalId: string): Promise<ProfessionalProfileRead> => {
+    const response = await api.get<ProfessionalProfileRead>(
+      `/public/professional/${professionalId}`
+    );
+    return response.data;
+  },
+
+  /**
+   * GET /api/v1/public/professional/{prof_id}/portfolio
+   * Ver portfolio público de un profesional
+   */
+  getPublicPortfolio: async (professionalId: string): Promise<PortfolioItemRead[]> => {
+    const response = await api.get<PortfolioItemRead[]>(
+      `/public/professional/${professionalId}/portfolio`
+    );
     return response.data;
   },
 

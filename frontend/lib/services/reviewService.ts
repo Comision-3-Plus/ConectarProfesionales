@@ -1,5 +1,6 @@
 /**
  * Servicio de Reseñas y Calificaciones
+ * Endpoints: /api/v1/resenas/*
  */
 
 import api from '../api';
@@ -9,9 +10,8 @@ export interface Review {
   trabajo_id: string;
   profesional_id: string;
   cliente_id: string;
-  calificacion: number;
-  comentario: string;
-  recomendaria: boolean;
+  rating: number; // 1-5
+  texto_resena?: string;
   fecha_creacion: string;
   cliente_nombre: string;
   cliente_avatar?: string;
@@ -20,6 +20,34 @@ export interface Review {
     texto: string;
     fecha: string;
   };
+}
+
+export interface ResenaCreate {
+  trabajo_id: string;
+  rating: number;
+  texto_resena?: string;
+}
+
+export interface ResenaPublicRead {
+  id: string;
+  trabajo_id: string;
+  profesional_id: string;
+  rating: number;
+  texto_resena?: string;
+  fecha_creacion: string;
+  cliente_nombre: string;
+  cliente_avatar?: string;
+}
+
+export interface ResenaCreateResponse {
+  id: string;
+  trabajo_id: string;
+  profesional_id: string;
+  cliente_id: string;
+  rating: number;
+  texto_resena?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ReviewStats {
@@ -38,66 +66,67 @@ export interface ReviewStats {
 
 class ReviewService {
   /**
-   * Crear una reseña
+   * POST /api/v1/resenas
+   * Crear una reseña para un trabajo completado
+   * Solo clientes que completaron el trabajo pueden reseñar
    */
-  async createReview(data: {
-    trabajo_id: string;
-    profesional_id: string;
-    calificacion: number;
-    comentario: string;
-    recomendaria: boolean;
-  }): Promise<Review> {
-    const response = await api.post('/resenas', data);
+  async createReview(trabajoId: string, rating: number, comment?: string): Promise<ResenaCreateResponse> {
+    const reviewData: ResenaCreate & { trabajo_id: string } = {
+      trabajo_id: trabajoId,
+      rating,
+      texto_resena: comment,
+    };
+
+    const response = await api.post<ResenaCreateResponse>('/resenas', reviewData);
     return response.data;
   }
 
   /**
-   * Obtener reseñas de un profesional
+   * GET /api/v1/resenas/professional/{prof_id}
+   * Obtener todas las reseñas de un profesional (público)
    */
-  async getProfessionalReviews(
-    profesionalId: string,
-    params?: {
-      page?: number;
-      limit?: number;
-      min_calificacion?: number;
-    }
-  ): Promise<{ resenas: Review[]; total: number }> {
-    const response = await api.get(`/resenas/profesional/${profesionalId}`, { params });
+  async getProfessionalReviews(profesionalId: string): Promise<ResenaPublicRead[]> {
+    const response = await api.get<ResenaPublicRead[]>(
+      `/resenas/professional/${profesionalId}`
+    );
     return response.data;
   }
 
   /**
+   * GET /api/v1/resenas/profesional/{profesionalId}/estadisticas
    * Obtener estadísticas de reseñas de un profesional
    */
   async getProfessionalStats(profesionalId: string): Promise<ReviewStats> {
-    const response = await api.get(`/resenas/profesional/${profesionalId}/estadisticas`);
+    const response = await api.get<ReviewStats>(`/resenas/profesional/${profesionalId}/estadisticas`);
     return response.data;
   }
 
   /**
+   * GET /api/v1/resenas/{reviewId}
    * Obtener una reseña específica
    */
   async getReview(reviewId: string): Promise<Review> {
-    const response = await api.get(`/resenas/${reviewId}`);
+    const response = await api.get<Review>(`/resenas/${reviewId}`);
     return response.data;
   }
 
   /**
+   * PUT /api/v1/resenas/{reviewId}
    * Actualizar una reseña (solo dentro de 24 horas)
    */
   async updateReview(
     reviewId: string,
     data: {
-      calificacion?: number;
-      comentario?: string;
-      recomendaria?: boolean;
+      rating?: number;
+      texto_resena?: string;
     }
   ): Promise<Review> {
-    const response = await api.put(`/resenas/${reviewId}`, data);
+    const response = await api.put<Review>(`/resenas/${reviewId}`, data);
     return response.data;
   }
 
   /**
+   * DELETE /api/v1/resenas/{reviewId}
    * Eliminar una reseña (solo dentro de 24 horas)
    */
   async deleteReview(reviewId: string): Promise<void> {
@@ -105,14 +134,16 @@ class ReviewService {
   }
 
   /**
+   * POST /api/v1/resenas/{reviewId}/responder
    * Responder a una reseña (solo profesional)
    */
   async respondToReview(reviewId: string, respuesta: string): Promise<Review> {
-    const response = await api.post(`/resenas/${reviewId}/responder`, { respuesta });
+    const response = await api.post<Review>(`/resenas/${reviewId}/responder`, { respuesta });
     return response.data;
   }
 
   /**
+   * GET /api/v1/resenas/mis-resenas
    * Obtener reseñas que dejé (como cliente)
    */
   async getMyReviews(params?: {
@@ -124,6 +155,7 @@ class ReviewService {
   }
 
   /**
+   * GET /api/v1/resenas/puede-resenar/{trabajoId}
    * Verificar si puedo dejar reseña para un trabajo
    */
   async canReviewTrabajo(trabajoId: string): Promise<{
@@ -136,10 +168,35 @@ class ReviewService {
   }
 
   /**
+   * POST /api/v1/resenas/{reviewId}/reportar
    * Reportar una reseña inapropiada
    */
   async reportReview(reviewId: string, motivo: string): Promise<void> {
     await api.post(`/resenas/${reviewId}/reportar`, { motivo });
+  }
+
+  /**
+   * Helper: Calcular rating promedio de un profesional
+   */
+  calculateAverageRating(reviews: ResenaPublicRead[]): number {
+    if (!reviews || reviews.length === 0) return 0;
+    const sum = reviews.reduce((acc, review) => acc + review.rating, 0);
+    return sum / reviews.length;
+  }
+
+  /**
+   * Helper: Obtener distribución de ratings (para gráficos)
+   */
+  getRatingDistribution(reviews: ResenaPublicRead[]): { [rating: number]: number } {
+    const distribution: { [key: number]: number } = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+
+    reviews.forEach((review) => {
+      if (review.rating >= 1 && review.rating <= 5) {
+        distribution[review.rating as keyof typeof distribution]++;
+      }
+    });
+
+    return distribution;
   }
 }
 

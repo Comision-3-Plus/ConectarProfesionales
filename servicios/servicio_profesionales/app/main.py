@@ -7,12 +7,14 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../shared'))
 
 from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
 from typing import List, Optional
 from datetime import datetime
 from geoalchemy2.functions import ST_DWithin, ST_MakePoint
 from geoalchemy2.elements import WKTElement
+from uuid import UUID
 
 from shared.core.database import get_db
 from shared.core.security import get_current_user, get_current_active_user
@@ -22,7 +24,7 @@ from shared.models.oficio import Oficio
 from shared.models.portfolio import PortfolioItem, PortfolioImagen
 from shared.models.trabajo import Trabajo
 from shared.models.oferta import Oferta
-from shared.models.enums import KYCStatus, UserRole
+from shared.models.enums import VerificationStatus, UserRole
 from shared.schemas.professional import (
     ProfessionalCreate, ProfessionalUpdate, ProfessionalResponse,
     KYCSubmitRequest, KYCStatusResponse
@@ -69,7 +71,10 @@ async def get_my_professional_profile(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Obtiene el perfil profesional del usuario autenticado"""
+    """
+    Obtiene el perfil profesional del usuario autenticado.
+    Si no existe, lo crea automáticamente.
+    """
     if current_user.rol != UserRole.PROFESIONAL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -80,13 +85,54 @@ async def get_my_professional_profile(
         Profesional.usuario_id == current_user.id
     ).first()
     
+    # Si no existe el perfil profesional, crearlo automáticamente
     if not professional:
+        print(f"📝 Creando perfil profesional para usuario {current_user.id} ({current_user.email})")
+        # Crear con campos válidos según el modelo actual
+        professional = Profesional(
+            usuario_id=current_user.id,
+            # El resto de campos usa sus defaults del modelo
+        )
+        db.add(professional)
+        db.commit()
+        db.refresh(professional)
+        print("✅ Perfil profesional creado exitosamente")
+
+    # Adaptar la respuesta al schema de lectura
+    return ProfessionalResponse.from_professional(professional)
+
+@app.post("/professional/initialize", response_model=ProfessionalResponse, status_code=status.HTTP_201_CREATED)
+async def initialize_professional_profile(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Inicializa un perfil profesional para el usuario actual.
+    Útil si el perfil no fue creado automáticamente durante el registro.
+    """
+    if current_user.rol != UserRole.PROFESIONAL:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Perfil profesional no encontrado"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los profesionales pueden crear un perfil profesional"
         )
     
-    return professional
+    # Verificar si ya existe
+    existing = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
+    ).first()
+    
+    if existing:
+        return existing
+    
+    # Crear nuevo perfil
+    professional = Profesional(
+        usuario_id=current_user.id,
+    )
+    db.add(professional)
+    db.commit()
+    db.refresh(professional)
+
+    return ProfessionalResponse.from_professional(professional)
 
 @app.put("/professional/me", response_model=ProfessionalResponse)
 async def update_my_professional_profile(
@@ -117,7 +163,7 @@ async def update_my_professional_profile(
     
     db.commit()
     db.refresh(professional)
-    return professional
+    return ProfessionalResponse.from_professional(professional)
 
 # ============================================================================
 # KYC ENDPOINTS
@@ -146,19 +192,10 @@ async def submit_kyc(
             detail="Perfil profesional no encontrado"
         )
     
-    # Actualizar documentos KYC
-    Profesional.kyc_document_front = kyc_data.document_front_url
-    Profesional.kyc_document_back = kyc_data.document_back_url
-    Profesional.kyc_selfie = kyc_data.selfie_url
-    Profesional.kyc_status = KYCStatus.PENDIENTE
-    Profesional.kyc_submitted_at = datetime.utcnow()
-    
+    # Marcar el estado de verificación como en revisión
+    professional.estado_verificacion = VerificationStatus.EN_REVISION
     db.commit()
-    
-    return {
-        "message": "KYC enviado correctamente",
-        "status": Profesional.kyc_status
-    }
+    return ProfessionalResponse.from_professional(professional)
 
 @app.get("/professional/kyc/status", response_model=KYCStatusResponse)
 async def get_kyc_status(
@@ -182,12 +219,7 @@ async def get_kyc_status(
             detail="Perfil profesional no encontrado"
         )
     
-    return {
-        "status": Profesional.kyc_status,
-        "submitted_at": Profesional.kyc_submitted_at,
-        "reviewed_at": Profesional.kyc_reviewed_at,
-        "rejection_reason": Profesional.kyc_rejection_reason
-    }
+    return ProfessionalResponse.from_professional(professional)
 
 # ============================================================================
 # PORTFOLIO ENDPOINTS
@@ -459,22 +491,16 @@ async def get_my_oficios(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los profesionales tienen oficios"
         )
-    
     professional = db.query(Profesional).filter(
         Profesional.usuario_id == current_user.id
     ).first()
-    
     if not professional:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Perfil profesional no encontrado"
         )
-    
-    oficios = db.query(Oficio).filter(
-        Oficio.professional_id == Profesional.id
-    ).all()
-    
-    return oficios
+    # Devolver los oficios asociados (relación M2M)
+    return professional.oficios
 
 @app.post("/professional/oficios", response_model=OficioResponse, status_code=status.HTTP_201_CREATED)
 async def add_oficio(
@@ -482,70 +508,47 @@ async def add_oficio(
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Agrega un nuevo oficio al profesional"""
+    """Crea un nuevo oficio (uso restringido) y lo devuelve."""
     if current_user.rol != UserRole.PROFESIONAL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los profesionales pueden agregar oficios"
         )
-    
-    professional = db.query(Profesional).filter(
-        Profesional.usuario_id == current_user.id
-    ).first()
-    
-    if not professional:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Perfil profesional no encontrado"
-        )
-    
-    new_oficio = Oficio(
-        professional_id=Profesional.id,
-        **oficio_data.dict()
-    )
-    
+    # Crear el oficio en catálogo (nota: normalmente sería admin)
+    new_oficio = Oficio(nombre=oficio_data.nombre, descripcion=oficio_data.descripcion)
     db.add(new_oficio)
     db.commit()
     db.refresh(new_oficio)
-    
     return new_oficio
 
 @app.delete("/professional/oficios/{oficio_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_oficio(
-    oficio_id: int,
+    oficio_id: str,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
-    """Elimina un oficio del profesional"""
+    """Desasocia un oficio del profesional (si estuviera asociado)."""
     if current_user.rol != UserRole.PROFESIONAL:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los profesionales pueden eliminar oficios"
         )
-    
     professional = db.query(Profesional).filter(
         Profesional.usuario_id == current_user.id
     ).first()
-    
     if not professional:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Perfil profesional no encontrado"
         )
-    
-    oficio = db.query(Oficio).filter(
-        Oficio.id == oficio_id,
-        Oficio.professional_id == Profesional.id
-    ).first()
-    
+    oficio = db.query(Oficio).filter(Oficio.id == oficio_id).first()
     if not oficio:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Oficio no encontrado"
-        )
-    
-    db.delete(oficio)
-    db.commit()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Oficio no encontrado")
+    # Quitar asociación si existe
+    if oficio in professional.oficios:
+        professional.oficios.remove(oficio)
+        db.commit()
+    return
 
 # ============================================================================
 # TRABAJOS Y OFERTAS ENDPOINTS (para profesionales)
@@ -563,24 +566,17 @@ async def get_my_trabajos(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los profesionales pueden ver sus trabajos"
         )
-    
     professional = db.query(Profesional).filter(
         Profesional.usuario_id == current_user.id
     ).first()
-    
     if not professional:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Perfil profesional no encontrado"
         )
-    
-    query = db.query(Trabajo).filter(
-        Trabajo.profesional_id == current_user.id
-    )
-    
+    query = db.query(Trabajo).filter(Trabajo.profesional_id == current_user.id)
     if estado:
         query = query.filter(Trabajo.estado_escrow == estado)
-    
     trabajos = query.order_by(Trabajo.fecha_creacion.desc()).all()
     return trabajos
 
@@ -596,24 +592,17 @@ async def get_my_ofertas(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo los profesionales pueden ver sus ofertas"
         )
-    
     professional = db.query(Profesional).filter(
         Profesional.usuario_id == current_user.id
     ).first()
-    
     if not professional:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Perfil profesional no encontrado"
         )
-    
-    query = db.query(Oferta).filter(
-        Oferta.profesional_id == current_user.id
-    )
-    
+    query = db.query(Oferta).filter(Oferta.profesional_id == current_user.id)
     if estado:
         query = query.filter(Oferta.estado == estado)
-    
     ofertas = query.order_by(Oferta.fecha_creacion.desc()).all()
     return ofertas
 
@@ -621,9 +610,8 @@ async def get_my_ofertas(
 # SEARCH ENDPOINTS (PostGIS)
 # ============================================================================
 
-@app.post("/search", response_model=SearchResponse)
-@cached(ttl=180, key_prefix="search_professionals")
-async def search_professionals(
+@app.post("/search")
+async def search_professionals_endpoint(
     search_params: SearchRequest,
     db: Session = Depends(get_db)
 ):
@@ -640,110 +628,79 @@ async def search_professionals(
     
     query = db.query(Profesional).join(User).filter(
         User.is_active == True,
-        User.role == UserRole.PROFESIONAL,
-        Profesional.kyc_status == KYCStatus.APROBADO
+        User.rol == UserRole.PROFESIONAL,
+        Profesional.estado_verificacion == VerificationStatus.APROBADO
     )
-    
-    # Filtro geoespacial si se proporciona ubicación
-    if search_params.latitude and search_params.longitude:
-        point = WKTElement(f'POINT({search_params.longitude} {search_params.latitude})', srid=4326)
-        radius_meters = search_params.radio_km * 1000
-        
-        query = query.filter(
-            ST_DWithin(
-                Profesional.ubicacion,
-                point,
-                radius_meters
-            )
-        )
-    
-    # Filtro por oficio
-    if search_params.oficio:
-        query = query.join(Oficio).filter(
+
+    # Filtro por oficio (por nombre, parcial, case-insensitive)
+    if getattr(search_params, 'oficio', None):
+        query = query.join(Profesional.oficios).filter(
             func.lower(Oficio.nombre).contains(search_params.oficio.lower())
         )
-    
-    # Filtro por habilidades
-    if search_params.habilidades:
-        query = query.filter(
-            or_(*[
-                Profesional.habilidades.contains([skill])
-                for skill in search_params.habilidades
-            ])
-        )
-    
-    # Filtro por rating mínimo
-    if search_params.rating_minimo:
-        query = query.filter(
-            Profesional.rating_promedio >= search_params.rating_minimo
-        )
-    
+
+    # Filtro por rating mínimo (si viene del frontend)
+    if getattr(search_params, 'rating_minimo', None):
+        query = query.filter(Profesional.rating_promedio >= search_params.rating_minimo)
+
     # Filtro por rango de precios
-    if hasattr(search_params, 'precio_minimo') and search_params.precio_minimo:
+    if getattr(search_params, 'precio_minimo', None):
         query = query.filter(Profesional.tarifa_por_hora >= search_params.precio_minimo)
-    
-    if hasattr(search_params, 'precio_maximo') and search_params.precio_maximo:
+    if getattr(search_params, 'precio_maximo', None):
         query = query.filter(Profesional.tarifa_por_hora <= search_params.precio_maximo)
-    
-    # Filtro por disponibilidad
-    if hasattr(search_params, 'disponible') and search_params.disponible:
-        query = query.filter(Profesional.disponible == True)
-    
+
     # Ordenamiento
-    if search_params.ordenar_por == "rating":
-        query = query.order_by(Profesional.rating_promedio.desc())
-    elif search_params.ordenar_por == "precio":
-        query = query.order_by(Profesional.tarifa_por_hora.asc())
-    elif search_params.ordenar_por == "distancia" and search_params.latitude and search_params.longitude:
-        # Ordenar por distancia
-        point = WKTElement(f'POINT({search_params.longitude} {search_params.latitude})', srid=4326)
-        query = query.order_by(
-            func.ST_Distance(Profesional.ubicacion, point)
-        )
-    elif search_params.ordenar_por == "trabajos":
-        query = query.order_by(Profesional.trabajos_completados.desc())
+    ordenar_por = getattr(search_params, 'ordenar_por', 'rating') or 'rating'
+    if ordenar_por == 'precio':
+        query = query.order_by(Profesional.tarifa_por_hora.asc().nulls_last())
     else:
-        # Por defecto, ordenar por rating y luego por trabajos completados
-        query = query.order_by(
-            Profesional.rating_promedio.desc(),
-            Profesional.trabajos_completados.desc()
-        )
-    
+        # Por defecto, rating desc
+        query = query.order_by(Profesional.rating_promedio.desc())
+
     # Paginación
+    skip = getattr(search_params, 'skip', 0) or 0
+    limit = getattr(search_params, 'limit', 100) or 100
     total = query.count()
-    professionals = query.offset(search_params.skip).limit(search_params.limit).all()
-    
-    # Formatear resultados
-    results = []
+    professionals = query.offset(skip).limit(limit).all()
+
+    # Cálculo de distancia (opcional)
+    lat = getattr(search_params, 'latitude', None)
+    lng = getattr(search_params, 'longitude', None)
+    point = None
+    if lat is not None and lng is not None:
+        point = WKTElement(f'POINT({lng} {lat})', srid=4326)
+
+    resultados = []
     for prof in professionals:
-        distance_km = None
-        if search_params.latitude and search_params.longitude:
-            point = WKTElement(f'POINT({search_params.longitude} {search_params.latitude})', srid=4326)
-            distance = db.query(
-                func.ST_Distance(Profesional.ubicacion, point)
+        distancia_km = None
+        if point is not None and prof.base_location is not None:
+            distancia = db.query(
+                func.ST_Distance(Profesional.base_location, point)
             ).filter(Profesional.id == prof.id).scalar()
-            distance_km = distance / 1000 if distance else None
-        
-        results.append(ProfessionalSearchResult(
-            id=prof.id,
-            user_id=prof.usuario_id,
-            nombre_completo=prof.nombre_completo,
-            biografia=prof.biografia,
-            rating_promedio=prof.rating_promedio,
-            total_resenas=prof.total_resenas,
-            tarifa_por_hora=prof.tarifa_por_hora,
-            foto_perfil=prof.foto_perfil,
-            distancia_km=distance_km,
-            habilidades=prof.habilidades or [],
-            oficios=[{"id": o.id, "nombre": o.nombre} for o in prof.oficios]
-        ))
-    
-    return SearchResponse(
-        total=total,
-        resultados=results,
-        pagina=search_params.skip // search_params.limit + 1,
-        total_paginas=(total + search_params.limit - 1) // search_params.limit
-    )
+            distancia_km = float(distancia) / 1000.0 if distancia is not None else None
+
+        # Tomar el primer oficio como principal para mostrar
+        oficio_nombre = prof.oficios[0].nombre if getattr(prof, 'oficios', []) else ''
+
+        resultados.append({
+            "id": str(prof.id),
+            "nombre": prof.usuario.nombre,
+            "apellido": prof.usuario.apellido,
+            "oficio": oficio_nombre,
+            "tarifa_por_hora": float(prof.tarifa_por_hora) if prof.tarifa_por_hora is not None else None,
+            "calificacion_promedio": float(prof.rating_promedio) if prof.rating_promedio is not None else 0.0,
+            "cantidad_resenas": int(prof.total_resenas) if prof.total_resenas is not None else 0,
+            "distancia_km": distancia_km,
+            "nivel_profesional": prof.nivel.value,
+            "puntos_experiencia": int(prof.puntos_experiencia),
+            "avatar_url": prof.usuario.avatar_url,
+        })
+
+    return JSONResponse(content={
+        "total": total,
+        "resultados": resultados,
+        "pagina": (skip // limit) + 1,
+        "total_paginas": (total + limit - 1) // limit,
+    })
 
 # ============================================================================
 # PUBLIC ENDPOINTS
@@ -766,14 +723,14 @@ async def get_public_professional_profile(
         )
     
     # Verificar que el usuario esté activo y el KYC aprobado
-    user = db.query(User).filter(User.id == Profesional.usuario_id).first()
-    if not user or not user.is_active or Profesional.kyc_status != KYCStatus.APROBADO:
+    user = professional.usuario
+    if not user or not user.is_active or professional.estado_verificacion != VerificationStatus.APROBADO:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Profesional no disponible"
         )
     
-    return professional
+    return ProfessionalResponse.from_professional(professional)
 
 @app.get("/public/professional/{prof_id}/portfolio", response_model=List[PortfolioResponse])
 async def get_public_portfolio(
@@ -829,14 +786,14 @@ async def get_pending_kyc(
         )
     
     pending_kycs = db.query(Profesional).filter(
-        Profesional.kyc_status == KYCStatus.PENDIENTE
+        Profesional.estado_verificacion == VerificationStatus.PENDIENTE
     ).all()
     
     return pending_kycs
 
 @app.put("/admin/kyc/{prof_id}/approve")
 async def approve_kyc(
-    prof_id: int,
+    prof_id: UUID,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
@@ -857,9 +814,7 @@ async def approve_kyc(
             detail="Profesional no encontrado"
         )
     
-    professional.kyc_status = KYCStatus.APROBADO
-    professional.kyc_reviewed_at = datetime.utcnow()
-    professional.kyc_rejection_reason = None
+    professional.estado_verificacion = VerificationStatus.APROBADO
     
     db.commit()
     
@@ -867,7 +822,7 @@ async def approve_kyc(
 
 @app.put("/admin/kyc/{prof_id}/reject")
 async def reject_kyc(
-    prof_id: int,
+    prof_id: UUID,
     request: KYCApproveRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
@@ -889,17 +844,15 @@ async def reject_kyc(
             detail="Profesional no encontrado"
         )
     
-    professional.kyc_status = KYCStatus.RECHAZADO
-    professional.kyc_reviewed_at = datetime.utcnow()
-    professional.kyc_rejection_reason = request.reason
+    professional.estado_verificacion = VerificationStatus.RECHAZADO
     
     db.commit()
     
-    return {"message": "KYC rechazado", "reason": request.reason}
+    return {"message": "KYC rechazado", "reason": request.razon}
 
 @app.put("/admin/users/{user_id}/ban")
 async def ban_user(
-    user_id: int,
+    user_id: UUID,
     request: UserBanRequest,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
@@ -919,7 +872,7 @@ async def ban_user(
             detail="Usuario no encontrado"
         )
     
-    if user.role == UserRole.ADMIN:
+    if user.rol == UserRole.ADMIN:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No se puede banear a un administrador"
@@ -932,7 +885,7 @@ async def ban_user(
 
 @app.put("/admin/users/{user_id}/unban")
 async def unban_user(
-    user_id: int,
+    user_id: UUID,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):

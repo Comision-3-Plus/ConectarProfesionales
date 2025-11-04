@@ -1,6 +1,7 @@
 /**
  * Servicio de Oficios
- * Gestión de oficios/categorías profesionales
+ * Gestión completa de oficios/categorías profesionales
+ * Endpoints: /api/v1/professional/oficios/* y /api/v1/public/oficios
  */
 
 import { api } from '../api';
@@ -10,11 +11,20 @@ export interface Oficio {
   nombre: string;
   descripcion?: string;
   categoria?: string;
+  icono?: string;
+  activo?: boolean;
+}
+
+export interface OficioCreate {
+  nombre: string;
+  descripcion?: string;
+  categoria?: string;
 }
 
 class OficiosService {
   /**
-   * Obtener lista de todos los oficios disponibles
+   * GET /api/v1/public/oficios
+   * Obtener lista de todos los oficios disponibles (público)
    */
   async getAll(): Promise<Oficio[]> {
     try {
@@ -36,6 +46,98 @@ class OficiosService {
         { id: '10', nombre: 'Cerrajería', descripcion: 'Instalación y reparación de cerraduras' },
       ];
     }
+  }
+
+  /**
+   * GET /api/v1/professional/oficios
+   * Obtener mis oficios (profesional autenticado)
+   */
+  async getMyOficios(): Promise<Oficio[]> {
+    const response = await api.get<Oficio[]>('/professional/oficios');
+    return response.data;
+  }
+
+  /**
+   * POST /api/v1/professional/oficios
+   * Agregar un nuevo oficio a mi perfil
+   */
+  async addOficio(oficioData: OficioCreate): Promise<Oficio> {
+    const response = await api.post<Oficio>('/professional/oficios', oficioData);
+    return response.data;
+  }
+
+  /**
+   * DELETE /api/v1/professional/oficios/{oficio_id}
+   * Eliminar un oficio de mi perfil
+   */
+  async removeOficio(oficioId: string): Promise<void> {
+    await api.delete(`/professional/oficios/${oficioId}`);
+  }
+
+  /**
+   * Helper: Buscar oficios por nombre
+   */
+  async searchOficios(searchTerm: string): Promise<Oficio[]> {
+    const allOficios = await this.getAll();
+    return allOficios.filter((oficio) =>
+      oficio.nombre.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }
+
+  /**
+   * Helper: Verificar si tengo un oficio específico
+   */
+  async hasOficio(oficioId: string): Promise<boolean> {
+    try {
+      const myOficios = await this.getMyOficios();
+      return myOficios.some((oficio) => oficio.id === oficioId);
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Helper: Agregar múltiples oficios a la vez
+   */
+  async addMultipleOficios(oficiosData: OficioCreate[]): Promise<Oficio[]> {
+    const addPromises = oficiosData.map((oficio) => this.addOficio(oficio));
+    return Promise.all(addPromises);
+  }
+
+  /**
+   * ADMIN: Crear nuevo oficio en el sistema
+   * POST /api/v1/admin/oficios
+   */
+  async adminCreateOficio(oficioData: OficioCreate): Promise<Oficio> {
+    const response = await api.post<Oficio>('/admin/oficios', oficioData);
+    return response.data;
+  }
+
+  /**
+   * ADMIN: Listar todos los oficios (incluye inactivos)
+   * GET /api/v1/admin/oficios
+   */
+  async adminListOficios(): Promise<Oficio[]> {
+    const response = await api.get<Oficio[]>('/admin/oficios');
+    return response.data;
+  }
+
+  /**
+   * ADMIN: Actualizar un oficio
+   * PUT /api/v1/admin/oficios/{oficio_id}
+   */
+  async adminUpdateOficio(oficioId: string, data: Partial<OficioCreate>): Promise<Oficio> {
+    const response = await api.put<Oficio>(`/admin/oficios/${oficioId}`, data);
+    return response.data;
+  }
+
+  /**
+   * ADMIN: Desactivar/activar un oficio
+   * PATCH /api/v1/admin/oficios/{oficio_id}/toggle
+   */
+  async adminToggleOficio(oficioId: string): Promise<Oficio> {
+    const response = await api.patch<Oficio>(`/admin/oficios/${oficioId}/toggle`);
+    return response.data;
   }
 }
 

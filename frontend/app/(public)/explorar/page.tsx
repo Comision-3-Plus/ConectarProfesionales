@@ -34,8 +34,27 @@ export default function ExplorarProfesionalesPage() {
   // Query para búsqueda de profesionales (solo se ejecuta cuando hay query o oficio_id)
   const { data: resultados = [], isLoading, refetch } = useQuery({
     queryKey: ['search-professionals', searchParams],
-    queryFn: () => searchService.searchProfessionals(searchParams),
-    enabled: false, // No auto-fetch, solo cuando user hace clic en buscar
+    // Adaptar los parámetros del formulario al contrato del backend
+    queryFn: async () => {
+      const lat = searchParams.lat ? parseFloat(searchParams.lat) : undefined
+      const lng = searchParams.lng ? parseFloat(searchParams.lng) : undefined
+
+      // El backend filtra por nombre de oficio (string), no por id
+      const oficioNombre = searchParams.oficio_id
+        ? (oficios as any[]).find((o) => String(o.id) === String(searchParams.oficio_id))?.nombre
+        : undefined
+
+      return searchService.searchProfessionals({
+        ubicacion_lat: lat,
+        ubicacion_lon: lng,
+        radio_km: searchParams.radio_km,
+        oficio: oficioNombre,
+        ordenar_por: 'rating',
+        skip: 0,
+        limit: 30,
+      } as any)
+    },
+    enabled: true, // Auto-fetch para mostrar profesionales al cargar
     staleTime: 30000,
   })
 
@@ -104,14 +123,16 @@ export default function ExplorarProfesionalesPage() {
                 <div className="space-y-2">
                   <Label htmlFor="oficio">Oficio</Label>
                   <Select
-                    value={searchParams.oficio_id}
-                    onValueChange={(value) => setSearchParams({ ...searchParams, oficio_id: value })}
+                    value={searchParams.oficio_id || 'all'}
+                    onValueChange={(value) =>
+                      setSearchParams({ ...searchParams, oficio_id: value === 'all' ? '' : value })
+                    }
                   >
                     <SelectTrigger id="oficio">
                       <SelectValue placeholder="Todos los oficios" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Todos los oficios</SelectItem>
+                      <SelectItem value="all">Todos los oficios</SelectItem>
                       {oficios.map((oficio: any) => (
                         <SelectItem key={oficio.id} value={oficio.id}>
                           {oficio.nombre}
@@ -205,13 +226,14 @@ export default function ExplorarProfesionalesPage() {
                     <div className="flex items-start gap-3">
                       <div className="relative">
                         <Image
-                          src={prof.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${prof.nombre_completo}`}
+                          src={prof.foto_perfil || `https://api.dicebear.com/7.x/avataaars/svg?seed=${prof.nombre_completo}`}
                           alt={prof.nombre_completo}
                           width={60}
                           height={60}
                           className="rounded-full"
                         />
-                        {prof.kyc_estado === "APROBADO" && (
+                        {/* Mostrar badge si el profesional está verificado (si el backend lo provee en el futuro) */}
+                        {prof.verificado && (
                           <div className="absolute -bottom-1 -right-1 bg-blue-500 rounded-full p-1">
                             <CheckCircle2 className="h-3 w-3 text-white" />
                           </div>
@@ -251,9 +273,9 @@ export default function ExplorarProfesionalesPage() {
                     <div className="flex items-center justify-between pt-2 border-t">
                       <div className="flex items-center gap-1 text-green-600 font-semibold">
                         <DollarSign className="h-4 w-4" />
-                        ${prof.tarifa_por_hora?.toLocaleString()}/hora
+                        ${typeof prof.tarifa_por_hora === 'number' ? prof.tarifa_por_hora.toLocaleString() : '—'}/hora
                       </div>
-                      {prof.distancia_km !== undefined && (
+                      {typeof prof?.distancia_km === 'number' && isFinite(prof.distancia_km) && (
                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
                           <MapPin className="h-3 w-3" />
                           {prof.distancia_km.toFixed(1)} km
