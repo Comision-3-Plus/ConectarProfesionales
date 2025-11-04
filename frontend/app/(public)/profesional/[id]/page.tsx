@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -18,12 +19,18 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import { publicService } from "@/lib/services/publicService"
+import { chatService } from "@/lib/services/chatService"
+import { useAuthStore } from "@/store/authStore"
+import { toast } from "sonner"
 
 export default function PerfilPublicoProfesionalPage() {
   const params = useParams()
+  const router = useRouter()
+  const { user, isAuthenticated } = useAuthStore()
   const profesionalId = params.id as string
+  const [isContacting, setIsContacting] = useState(false)
 
   // Query para obtener perfil público
   const { data: profile, isLoading: loadingProfile } = useQuery({
@@ -95,6 +102,48 @@ export default function PerfilPublicoProfesionalPage() {
 
   const serviciosInstantaneos = profile.servicios_instantaneos || []
   const resenas = profile.resenas || []
+
+  /**
+   * Función para manejar el contacto con el profesional
+   * Crea o obtiene un chat room existente y redirige al usuario
+   */
+  const handleContactProfessional = async () => {
+    if (!isAuthenticated || !user) {
+      toast.error('Debes iniciar sesión para contactar al profesional', {
+        description: 'Te redirigiremos a la página de inicio de sesión',
+      })
+      router.push('/login')
+      return
+    }
+
+    if (user.id === profesionalId) {
+      toast.error('No puedes contactarte a ti mismo')
+      return
+    }
+
+    setIsContacting(true)
+
+    try {
+      // Crear o obtener el chat room
+      const chatId = await chatService.getOrCreateChatRoom(
+        profesionalId,
+        user.id,
+        `${user.nombre} ${user.apellido}`,
+        profile.nombre_completo
+      )
+
+      // Redirigir al chat
+      toast.success('Redirigiendo al chat...')
+      router.push(`/chat/${chatId}`)
+    } catch (error) {
+      console.error('Error al crear chat:', error)
+      toast.error('No se pudo iniciar el chat', {
+        description: 'Por favor, intenta nuevamente más tarde',
+      })
+    } finally {
+      setIsContacting(false)
+    }
+  }
 
   return (
     <div className="container mx-auto p-6 max-w-6xl space-y-6">
@@ -178,12 +227,34 @@ export default function PerfilPublicoProfesionalPage() {
                 </div>
               </div>
 
-              <Link href="/login">
-                <Button size="lg" className="w-full md:w-auto">
-                  <MessageSquare className="h-5 w-5 mr-2" />
-                  Contactar Profesional
+              {/* Botón de contactar - visible solo si está autenticado */}
+              {isAuthenticated ? (
+                <Button 
+                  size="lg" 
+                  className="w-full md:w-auto bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-lg"
+                  onClick={handleContactProfessional}
+                  disabled={isContacting}
+                >
+                  {isContacting ? (
+                    <>
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Iniciando chat...
+                    </>
+                  ) : (
+                    <>
+                      <MessageSquare className="h-5 w-5 mr-2" />
+                      Iniciar Chat
+                    </>
+                  )}
                 </Button>
-              </Link>
+              ) : (
+                <Link href="/login">
+                  <Button size="lg" className="w-full md:w-auto bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-lg">
+                    <MessageSquare className="h-5 w-5 mr-2" />
+                    Contactar Profesional
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
         </CardContent>

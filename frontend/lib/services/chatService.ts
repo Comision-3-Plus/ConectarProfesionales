@@ -334,4 +334,22 @@ export const chatService = {
 
     return unreadCount;
   },
+
+  /**
+   * Wrapper simplificado para crear o obtener un chat room con un profesional
+   * Se usa desde la página pública del perfil del profesional
+   */
+  getOrCreateChatRoom: async (
+    profesionalId: string,
+    currentUserId: string,
+    currentUserName: string,
+    profesionalName: string
+  ): Promise<string> => {
+    return chatService.createOrGetConversation(
+      currentUserId,
+      profesionalId,
+      currentUserName,
+      profesionalName
+    );
+  },
 };

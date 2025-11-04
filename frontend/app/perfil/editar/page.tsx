@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { professionalService } from '@/lib/services/professionalService';
+import { userService } from '@/lib/services/userService';
 import { oficiosService, type Oficio } from '@/lib/services/oficiosService';
 import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,10 @@ export default function EditarPerfilPage() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  // Datos del usuario (nombre y apellido)
+  const [nombre, setNombre] = useState('');
+  const [apellido, setApellido] = useState('');
 
   // Datos del perfil
   const [biografia, setBiografia] = useState('');
@@ -83,6 +88,13 @@ export default function EditarPerfilPage() {
   const loadProfile = async () => {
     try {
       setLoading(true);
+      
+      // Cargar datos del usuario (nombre y apellido)
+      const userData = await userService.getMe();
+      setNombre(userData.nombre || '');
+      setApellido(userData.apellido || '');
+      
+      // Cargar datos del perfil profesional
       const profile = await professionalService.getMe();
       
       // Cargar datos existentes
@@ -114,24 +126,32 @@ export default function EditarPerfilPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await professionalService.updateProfile({
-        biografia,
-        descripcion,
-        experiencia_anos: experienciaAnos,
-        tarifa_por_hora: tarifaPorHora,
-        radio_cobertura_km: radioCobertura,
-        disponible,
-        habilidades,
-        certificaciones,
-        imagenes_trabajos: imagenesTrabajos,
-        ubicacion_lat: ubicacionLat,
-        ubicacion_lon: ubicacionLon,
-      });
+      // Ejecutar ambas actualizaciones en paralelo
+      await Promise.all([
+        // Actualizar datos del usuario (nombre y apellido)
+        userService.updateMe({ nombre, apellido }),
+        
+        // Actualizar datos del perfil profesional
+        professionalService.updateProfile({
+          biografia,
+          descripcion,
+          experiencia_anos: experienciaAnos,
+          tarifa_por_hora: tarifaPorHora,
+          radio_cobertura_km: radioCobertura,
+          disponible,
+          habilidades,
+          certificaciones,
+          imagenes_trabajos: imagenesTrabajos,
+          ubicacion_lat: ubicacionLat,
+          ubicacion_lon: ubicacionLon,
+        })
+      ]);
 
       toast.success('Perfil actualizado correctamente');
       router.push('/perfil');
     } catch (error) {
       console.error('Error al guardar:', error);
+      toast.error('Error al actualizar el perfil');
     } finally {
       setSaving(false);
     }
@@ -242,6 +262,30 @@ export default function EditarPerfilPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Nombre */}
+          <div className="space-y-2">
+            <Label htmlFor="nombre">Nombre</Label>
+            <Input
+              id="nombre"
+              placeholder="Tu nombre"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              maxLength={50}
+            />
+          </div>
+
+          {/* Apellido */}
+          <div className="space-y-2">
+            <Label htmlFor="apellido">Apellido</Label>
+            <Input
+              id="apellido"
+              placeholder="Tu apellido"
+              value={apellido}
+              onChange={(e) => setApellido(e.target.value)}
+              maxLength={50}
+            />
+          </div>
+
           {/* Biografía */}
           <div className="space-y-2">
             <Label htmlFor="biografia">Biografía (Título corto)</Label>

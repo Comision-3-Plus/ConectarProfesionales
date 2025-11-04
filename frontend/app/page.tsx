@@ -153,7 +153,7 @@ export default function HomePage() {
                   variant="outline"
                   className="w-full border-slate-300 text-lg sm:w-auto"
                 >
-                  <Link href="/browse">
+                  <Link href="/explorar">
                     <Search className="mr-2 h-5 w-5" />
                     Explorar Profesionales
                   </Link>
@@ -416,7 +416,7 @@ export default function HomePage() {
               </p>
             </div>
             <Button asChild variant="ghost" className="hidden sm:flex">
-              <Link href="/browse">
+              <Link href="/explorar">
                 Ver todos
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
@@ -446,7 +446,7 @@ export default function HomePage() {
 
           <div className="mt-8 text-center sm:hidden">
             <Button asChild variant="outline">
-              <Link href="/browse">
+              <Link href="/explorar">
                 Ver todos los profesionales
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
@@ -571,7 +571,7 @@ export default function HomePage() {
                 variant="outline"
                 className="group border-2 border-white bg-transparent text-white hover:bg-white hover:text-orange-600 px-8 py-6 text-lg font-bold transition-all hover:scale-105 shadow-lg hover:shadow-white/50"
               >
-                <Link href="/browse">
+                <Link href="/explorar">
                   <Search className="mr-2 h-5 w-5 group-hover:rotate-12 transition-transform" />
                   Explorar Profesionales
                 </Link>

@@ -76,8 +76,22 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     - Contraseña hasheada con bcrypt
     - Si es PROFESIONAL, crea perfil automáticamente
     """
-    nuevo_usuario = user_service.create_user(db=db, user=user)
-    return nuevo_usuario
+    try:
+        print(f"📝 Registro - Datos recibidos: {user.model_dump()}")
+        nuevo_usuario = user_service.create_user(db=db, user=user)
+        print(f"✅ Usuario creado: {nuevo_usuario.email}")
+        return nuevo_usuario
+    except HTTPException as e:
+        print(f"❌ Error HTTP en registro: {e.status_code} - {e.detail}")
+        raise
+    except Exception as e:
+        print(f"❌ Error inesperado en registro: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error interno: {str(e)}"
+        )
 
 @app.post("/auth/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
@@ -87,30 +101,52 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     - Verifica que usuario esté activo (no baneado)
     - Genera JWT con user_id y rol
     """
-    # Verificar si usuario existe
-    user_check = db.query(Usuario).filter(Usuario.email == form_data.username).first()
-    
-    if user_check and not user_check.is_active:
+    try:
+        print(f"🔐 Login - Email: {form_data.username}")
+        
+        # Verificar si usuario existe
+        user_check = db.query(Usuario).filter(Usuario.email == form_data.username).first()
+        
+        if not user_check:
+            print(f"❌ Usuario no encontrado: {form_data.username}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Email o contraseña incorrectos",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        if user_check and not user_check.is_active:
+            print(f"⛔ Usuario inactivo: {form_data.username}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Tu cuenta ha sido desactivada. Contacta al administrador.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Autenticar usuario
+        user = user_service.authenticate_user(db, email=form_data.username, password=form_data.password)
+        if not user:
+            print(f"❌ Contraseña incorrecta para: {form_data.username}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Email o contraseña incorrectos",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Crear token
+        payload = {"sub": str(user.id), "rol": user.rol.value}
+        access_token = create_access_token(data=payload)
+        
+        print(f"✅ Login exitoso: {user.email}")
+        return {"access_token": access_token, "token_type": "bearer"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error inesperado en login: {type(e).__name__}: {str(e)}")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Tu cuenta ha sido desactivada. Contacta al administrador.",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error interno del servidor"
         )
-    
-    # Autenticar usuario
-    user = user_service.authenticate_user(db, email=form_data.username, password=form_data.password)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email o contraseña incorrectos",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    # Crear token
-    payload = {"sub": str(user.id), "rol": user.rol.value}
-    access_token = create_access_token(data=payload)
-    
-    return {"access_token": access_token, "token_type": "bearer"}
 
 @app.post("/auth/validate-token", response_model=TokenData)
 def validate_token(token: str):

@@ -983,35 +983,23 @@ async def crear_servicio_publicado(
             detail="Solo los profesionales pueden publicar servicios"
         )
     
-    # Verificar que el profesional existe, o crear uno si es ADMIN
+    # Verificar que el profesional existe
     professional = db.query(Profesional).filter(
         Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
-        # Si es ADMIN, crear perfil profesional automáticamente
-        if current_user.rol == UserRole.ADMIN:
-            professional = Profesional(
-                usuario_id=current_user.id,
-                nivel='ORO',  # Dar nivel ORO a los admins
-                puntos_experiencia=5000,
-                tasa_comision_actual=10.0  # Comisión reducida para admins
-            )
-            db.add(professional)
-            db.commit()
-            db.refresh(professional)
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Perfil profesional no encontrado"
-            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Perfil profesional no encontrado. Debes registrarte como profesional primero."
+        )
     
     # Verificar que el oficio existe
     oficio = db.query(Oficio).filter(Oficio.id == servicio_data.oficio_id).first()
     if not oficio:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Oficio no encontrado"
+            detail=f"Oficio con ID {servicio_data.oficio_id} no encontrado"
         )
     
     # Crear el servicio
@@ -1020,7 +1008,7 @@ async def crear_servicio_publicado(
         descripcion=servicio_data.descripcion,
         precio_fijo=servicio_data.precio_fijo,
         oficio_id=servicio_data.oficio_id,
-        profesional_id=Profesional.id
+        profesional_id=professional.id  # Usar professional.id en lugar de Profesional.id
     )
     
     db.add(nuevo_servicio)
@@ -1048,25 +1036,13 @@ async def listar_mis_servicios(
     ).first()
     
     if not professional:
-        # Si es ADMIN, crear perfil profesional automáticamente
-        if current_user.rol == UserRole.ADMIN:
-            professional = Profesional(
-                user_id=current_user.id,
-                nivel='ORO',
-                puntos_xp=5000,
-                comision_porcentaje=10.0
-            )
-            db.add(professional)
-            db.commit()
-            db.refresh(professional)
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Perfil profesional no encontrado"
-            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Perfil profesional no encontrado"
+        )
     
     servicios = db.query(ServicioInstantaneo).filter(
-        ServicioInstantaneo.profesional_id == Profesional.id
+        ServicioInstantaneo.profesional_id == professional.id  # Usar professional.id
     ).all()
     
     return servicios
@@ -1100,7 +1076,7 @@ async def actualizar_servicio(
     
     servicio = db.query(ServicioInstantaneo).filter(
         ServicioInstantaneo.id == servicio_id,
-        ServicioInstantaneo.profesional_id == Profesional.id
+        ServicioInstantaneo.profesional_id == professional.id  # Usar professional.id
     ).first()
     
     if not servicio:
@@ -1150,7 +1126,7 @@ async def eliminar_servicio(
     
     servicio = db.query(ServicioInstantaneo).filter(
         ServicioInstantaneo.id == servicio_id,
-        ServicioInstantaneo.profesional_id == Profesional.id
+        ServicioInstantaneo.profesional_id == professional.id  # Usar professional.id
     ).first()
     
     if not servicio:

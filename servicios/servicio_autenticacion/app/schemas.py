@@ -20,6 +20,10 @@ class UserCreate(BaseModel):
     nombre: str = Field(..., min_length=1, max_length=100)
     apellido: str = Field(..., min_length=1, max_length=100)
     rol: UserRole = UserRole.CLIENTE
+    oficio_id: Optional[str] = None  # UUID del oficio (solo para profesionales)
+    
+    class Config:
+        extra = "ignore"  # Ignorar campos adicionales en lugar de rechazarlos
 
 class UserRead(BaseModel):
     """Schema para leer usuario"""

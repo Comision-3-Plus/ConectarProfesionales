@@ -88,7 +88,7 @@ export function Navbar() {
               asChild 
               className="relative text-slate-700 dark:text-slate-300 hover:text-orange-600 dark:hover:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30 transition-all duration-200 group"
             >
-              <Link href="/browse" className="flex items-center">
+              <Link href="/explorar" className="flex items-center">
                 <Search className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
                 <span className="font-medium">Explorar</span>
               </Link>
@@ -256,6 +256,15 @@ export function Navbar() {
                       </Link>
                     </DropdownMenuItem>
                     
+                    {user?.es_profesional && (
+                      <DropdownMenuItem asChild className="cursor-pointer py-2 rounded-md">
+                        <Link href="/perfil/editar" className="flex items-center">
+                          <Settings className="mr-3 h-4 w-4 text-orange-600" />
+                          <span className="text-sm">Editar mi Perfil Profesional</span>
+                        </Link>
+                      </DropdownMenuItem>
+                    )}
+                    
                     <DropdownMenuItem asChild className="cursor-pointer py-2 rounded-md">
                       <Link href="/dashboard/configuracion" className="flex items-center">
                         <Settings className="mr-3 h-4 w-4 text-slate-600" />
@@ -327,7 +336,7 @@ export function Navbar() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-72 p-2">
                 <DropdownMenuItem asChild className="cursor-pointer py-3 rounded-md">
-                  <Link href="/browse" className="flex items-center">
+                  <Link href="/explorar" className="flex items-center">
                     <div className="mr-3 flex h-9 w-9 items-center justify-center rounded-lg bg-orange-100">
                       <Search className="h-4 w-4 text-orange-600" />
                     </div>

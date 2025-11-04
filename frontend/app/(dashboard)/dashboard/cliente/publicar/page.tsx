@@ -38,7 +38,7 @@ export default function PublicarProyectoPage() {
                 <p className="text-sm text-muted-foreground">
                   Busca por oficio, ubicación y calificaciones. Revisa perfiles, portfolios y reseñas.
                 </p>
-                <Link href="/browse" className="mt-2 inline-block">
+                <Link href="/explorar" className="mt-2 inline-block">
                   <Button variant="outline" size="sm">
                     <Search className="mr-2 h-4 w-4" />
                     Explorar Profesionales
@@ -85,7 +85,7 @@ export default function PublicarProyectoPage() {
           </div>
 
           <div className="flex justify-center gap-4 pt-6">
-            <Link href="/browse">
+            <Link href="/explorar">
               <Button size="lg">
                 <Search className="mr-2 h-5 w-5" />
                 Buscar Profesionales
