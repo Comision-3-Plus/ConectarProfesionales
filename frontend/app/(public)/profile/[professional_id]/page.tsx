@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PortfolioGallery } from '@/components/features/PortfolioGallery';
 import { ReviewsList } from '@/components/reviews/ReviewsList';
+import { VerificationBadges } from '@/components/features/VerificationBadges';
 import { Star, MessageCircle, DollarSign, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
@@ -160,6 +161,15 @@ export default function ProfessionalProfilePage({
                   )}
                 </div>
 
+                {/* Badges de verificación */}
+                <VerificationBadges
+                  kycStatus={professional.estado_verificacion || 'PENDIENTE'}
+                  emailVerified={true}
+                  memberSince={professional.fecha_creacion || new Date().toISOString()}
+                  trabajosCompletados={professional.trabajos_completados || 0}
+                  nivel={professional.nivel}
+                />
+
                 {/* Biography */}
                 {biografia && (
                   <p className="text-slate-700">{biografia}</p>
@@ -217,10 +227,21 @@ export default function ProfessionalProfilePage({
                 <CardTitle>Reseñas de Clientes</CardTitle>
               </CardHeader>
               <CardContent>
-                <ReviewsList
-                  reviews={professional.resenas || []}
-                  profesionalNombre={`${professional.nombre} ${professional.apellido}`}
-                />
+                {professional.resenas && professional.resenas.length > 0 ? (
+                  <ReviewsList
+                    reviews={professional.resenas}
+                    profesionalNombre={`${professional.nombre} ${professional.apellido}`}
+                  />
+                ) : (
+                  <div className="py-12 text-center">
+                    <p className="text-muted-foreground">
+                      Este profesional aún no tiene reseñas.
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Sé el primero en trabajar y dejar una reseña.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

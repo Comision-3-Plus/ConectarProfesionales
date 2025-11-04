@@ -4,7 +4,7 @@
  */
 
 import { api } from '../api';
-import { PublicProfileResponse, PortfolioItemRead, OficioRead, ServicioInstantaneoRead } from '@/types';
+import { PublicProfileResponse, PortfolioItemRead, OficioRead, ServicioInstantaneoRead, ResenaPublicRead } from '@/types';
 
 export const publicService = {
   /**
@@ -32,6 +32,20 @@ export const publicService = {
   getProfessionalPortfolio: async (profId: string): Promise<PortfolioItemRead[]> => {
     const response = await api.get<PortfolioItemRead[]>(`/public/professional/${profId}/portfolio`);
     return response.data;
+  },
+
+  /**
+   * GET /api/v1/public/professional/{prof_id}/resenas
+   * Obtener reseñas públicas de un profesional
+   */
+  getReviews: async (profId: string): Promise<ResenaPublicRead[]> => {
+    try {
+      const response = await api.get<ResenaPublicRead[]>(`/public/professional/${profId}/resenas`);
+      return response.data;
+    } catch (error) {
+      console.error('Error al obtener reseñas:', error);
+      return [];
+    }
   },
 
   /**

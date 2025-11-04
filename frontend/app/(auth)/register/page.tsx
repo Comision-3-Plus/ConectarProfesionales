@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { authService } from '@/lib/services';
+import { oficiosService, type Oficio } from '@/lib/services/oficiosService';
 import { UserRole } from '@/types';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
@@ -37,6 +39,7 @@ const registerSchema = z.object({
   nombre: z.string().min(2, 'El nombre es requerido'),
   apellido: z.string().min(2, 'El apellido es requerido'),
   telefono: z.string().optional(),
+  oficio_id: z.string().optional(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: 'Las contraseñas no coinciden',
   path: ['confirmPassword'],
@@ -50,6 +53,8 @@ export default function RegisterPage() {
   const [userType, setUserType] = useState<'cliente' | 'profesional'>('cliente');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [oficios, setOficios] = useState<Oficio[]>([]);
+  const [oficioId, setOficioId] = useState<string>('');
 
   const {
     register,
@@ -59,7 +64,22 @@ export default function RegisterPage() {
     resolver: zodResolver(registerSchema),
   });
 
+  // Cargar oficios al montar el componente
+  useEffect(() => {
+    const loadOficios = async () => {
+      const data = await oficiosService.getAll();
+      setOficios(data);
+    };
+    loadOficios();
+  }, []);
+
   const onSubmit = async (data: RegisterFormData) => {
+    // Validar oficio si es profesional
+    if (userType === 'profesional' && !oficioId) {
+      toast.error('Debes seleccionar un oficio');
+      return;
+    }
+
     setIsLoading(true);
     try {
       await authService.register({
@@ -68,6 +88,7 @@ export default function RegisterPage() {
         nombre: data.nombre,
         apellido: data.apellido,
         rol: userType === 'profesional' ? UserRole.PROFESIONAL : UserRole.CLIENTE,
+        oficio_id: userType === 'profesional' ? oficioId : undefined,
       });
       
       toast.success('¡Cuenta creada exitosamente! 🎉', {
@@ -288,6 +309,33 @@ export default function RegisterPage() {
                     />
                   </div>
                 </div>
+
+                {/* Oficio (solo para profesionales) */}
+                {userType === 'profesional' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="oficio" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                      ¿Cuál es tu oficio principal? <span className="text-red-500">*</span>
+                    </Label>
+                    <Select value={oficioId} onValueChange={setOficioId}>
+                      <SelectTrigger className="h-12 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 focus:border-orange-500 focus:ring-orange-500">
+                        <Briefcase className="h-5 w-5 text-slate-400 mr-2" />
+                        <SelectValue placeholder="Selecciona tu oficio..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {oficios.map((oficio) => (
+                          <SelectItem key={oficio.id} value={oficio.id}>
+                            {oficio.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {userType === 'profesional' && !oficioId && (
+                      <p className="text-xs text-slate-500">
+                        Selecciona el oficio que mejor represente tu trabajo principal
+                      </p>
+                    )}
+                  </div>
+                )}
 
                 {/* Password */}
                 <div className="space-y-2">

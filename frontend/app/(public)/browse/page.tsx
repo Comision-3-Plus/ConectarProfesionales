@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ProfessionalCard } from '@/components/features/ProfessionalCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,15 +14,21 @@ import {
 } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Filter, X } from 'lucide-react';
+import { Filter, X, MapPin, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { searchService, publicService } from '@/lib/services';
 import type { SearchFilters, SearchResult } from '@/types';
+import { toast } from 'sonner';
 
 export default function BrowsePage() {
-  const [filters, setFilters] = useState<SearchFilters>({});
+  const [filters, setFilters] = useState<SearchFilters>({
+    ubicacion_lat: -34.6037, // Buenos Aires por defecto
+    ubicacion_lon: -58.3816,
+    radio_km: 10,
+  });
   const [page, setPage] = useState(1);
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
 
   // Fetch oficios (público, sin auth)
   const { data: oficios } = useQuery({
@@ -31,17 +37,9 @@ export default function BrowsePage() {
   });
 
   // Fetch professionals with filters
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['professionals', 'search', filters, page],
-    queryFn: () => searchService.searchProfessionals({
-      oficio: filters.oficio,
-      ubicacion_lat: filters.ubicacion_lat || 0,
-      ubicacion_lon: filters.ubicacion_lon || 0,
-      radio_km: filters.radio_km,
-      incluir_fuera_de_radio: true, // Incluir todos si no hay ubicación
-      solo_disponibles_ahora: filters.solo_disponibles_ahora,
-    }),
-    // Habilitado por defecto para mostrar todos los profesionales
+    queryFn: () => searchService.searchProfessionals(filters),
     staleTime: 30000,
   });
 
@@ -51,11 +49,40 @@ export default function BrowsePage() {
   };
 
   const clearFilters = () => {
-    setFilters({});
+    setFilters({
+      ubicacion_lat: -34.6037,
+      ubicacion_lon: -58.3816,
+      radio_km: 10,
+    });
     setPage(1);
   };
 
-  const hasActiveFilters = Object.keys(filters).length > 0;
+  const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Tu navegador no soporta geolocalización');
+      return;
+    }
+
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setFilters((prev) => ({
+          ...prev,
+          ubicacion_lat: position.coords.latitude,
+          ubicacion_lon: position.coords.longitude,
+        }));
+        toast.success('Ubicación obtenida correctamente');
+        setLocationLoading(false);
+      },
+      (error) => {
+        console.error('Error obteniendo ubicación:', error);
+        toast.error('No se pudo obtener tu ubicación');
+        setLocationLoading(false);
+      }
+    );
+  };
+
+  const hasActiveFilters = Object.keys(filters).length > 3; // Más que lat, lon, radio
 
   const FilterSection = () => (
     <div className="space-y-6">
@@ -76,12 +103,61 @@ export default function BrowsePage() {
 
       <Separator />
 
+      {/* Ubicación */}
+      <div className="space-y-2">
+        <Label>Mi Ubicación</Label>
+        <Button
+          variant="outline"
+          className="w-full justify-start"
+          onClick={getCurrentLocation}
+          disabled={locationLoading}
+        >
+          {locationLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Obteniendo ubicación...
+            </>
+          ) : (
+            <>
+              <MapPin className="mr-2 h-4 w-4" />
+              Usar mi ubicación actual
+            </>
+          )}
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          Lat: {filters.ubicacion_lat.toFixed(4)}, Lon: {filters.ubicacion_lon.toFixed(4)}
+        </p>
+      </div>
+
+      <Separator />
+
+      {/* Radio de búsqueda */}
+      <div className="space-y-2">
+        <Label htmlFor="radio">Radio de búsqueda</Label>
+        <Select
+          value={filters.radio_km?.toString() || '10'}
+          onValueChange={(value) => handleFilterChange('radio_km', parseInt(value))}
+        >
+          <SelectTrigger id="radio">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="5">5 km</SelectItem>
+            <SelectItem value="10">10 km</SelectItem>
+            <SelectItem value="15">15 km</SelectItem>
+            <SelectItem value="20">20 km</SelectItem>
+            <SelectItem value="30">30 km</SelectItem>
+            <SelectItem value="50">50 km</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Oficio Filter */}
       <div className="space-y-2">
         <Label htmlFor="oficio">Oficio</Label>
         <Select
-          value={filters.oficio_id?.toString()}
-          onValueChange={(value) => handleFilterChange('oficio_id', parseInt(value))}
+          value={filters.oficio || 'all'}
+          onValueChange={(value) => handleFilterChange('oficio', value === 'all' ? undefined : value)}
         >
           <SelectTrigger id="oficio">
             <SelectValue placeholder="Todos los oficios" />
@@ -89,7 +165,7 @@ export default function BrowsePage() {
           <SelectContent>
             <SelectItem value="all">Todos los oficios</SelectItem>
             {oficios?.map((oficio) => (
-              <SelectItem key={oficio.id} value={oficio.id.toString()}>
+              <SelectItem key={oficio.id} value={oficio.nombre}>
                 {oficio.nombre}
               </SelectItem>
             ))}
@@ -97,30 +173,9 @@ export default function BrowsePage() {
         </Select>
       </div>
 
-      {/* Nivel Filter */}
-      <div className="space-y-2">
-        <Label htmlFor="nivel">Nivel de Experiencia</Label>
-        <Select
-          value={filters.nivel}
-          onValueChange={(value) =>
-            handleFilterChange('nivel', value === 'all' ? undefined : value)
-          }
-        >
-          <SelectTrigger id="nivel">
-            <SelectValue placeholder="Todos los niveles" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los niveles</SelectItem>
-            <SelectItem value="junior">Junior</SelectItem>
-            <SelectItem value="intermedio">Intermedio</SelectItem>
-            <SelectItem value="senior">Senior</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       {/* Tarifa Filter */}
       <div className="space-y-2">
-        <Label>Tarifa por Hora (USD)</Label>
+        <Label>Tarifa por Hora ($)</Label>
         <div className="space-y-2">
           <div>
             <Label htmlFor="tarifa_min" className="text-xs text-slate-500">
@@ -130,6 +185,7 @@ export default function BrowsePage() {
               id="tarifa_min"
               type="number"
               placeholder="0"
+              min="0"
               value={filters.tarifa_min || ''}
               onChange={(e) =>
                 handleFilterChange('tarifa_min', e.target.value ? parseFloat(e.target.value) : undefined)
@@ -143,7 +199,8 @@ export default function BrowsePage() {
             <Input
               id="tarifa_max"
               type="number"
-              placeholder="1000"
+              placeholder="10000"
+              min="0"
               value={filters.tarifa_max || ''}
               onChange={(e) =>
                 handleFilterChange('tarifa_max', e.target.value ? parseFloat(e.target.value) : undefined)
@@ -157,7 +214,7 @@ export default function BrowsePage() {
       <div className="space-y-2">
         <Label htmlFor="rating">Calificación Mínima</Label>
         <Select
-          value={filters.rating_min?.toString()}
+          value={filters.rating_min?.toString() || 'all'}
           onValueChange={(value) =>
             handleFilterChange('rating_min', value === 'all' ? undefined : parseFloat(value))
           }
@@ -174,6 +231,30 @@ export default function BrowsePage() {
           </SelectContent>
         </Select>
       </div>
+
+      {/* Disponibilidad */}
+      <div className="space-y-2">
+        <Label htmlFor="disponibilidad">Disponibilidad</Label>
+        <Select
+          value={filters.solo_disponibles_ahora ? 'si' : 'todos'}
+          onValueChange={(value) =>
+            handleFilterChange('solo_disponibles_ahora', value === 'si')
+          }
+        >
+          <SelectTrigger id="disponibilidad">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            <SelectItem value="si">Solo disponibles ahora</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Aplicar filtros */}
+      <Button className="w-full" onClick={() => refetch()}>
+        Aplicar Filtros
+      </Button>
     </div>
   );
 
@@ -186,7 +267,12 @@ export default function BrowsePage() {
             Explorar Profesionales
           </h1>
           <p className="mt-2 text-slate-600">
-            {data ? `${data.length} profesionales encontrados` : 'Cargando...'}
+            {isLoading 
+              ? 'Buscando...' 
+              : data 
+                ? `${data.length} profesional${data.length !== 1 ? 'es' : ''} encontrado${data.length !== 1 ? 's' : ''}`
+                : 'Cargando...'
+            }
           </p>
         </div>
 

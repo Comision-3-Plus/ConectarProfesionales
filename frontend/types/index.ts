@@ -51,6 +51,7 @@ export interface UserCreate {
   nombre: string;
   apellido: string;
   rol?: UserRole;
+  oficio_id?: string; // Para profesionales: oficio principal
 }
 
 export interface UserUpdate {
@@ -379,6 +380,12 @@ export interface SearchProfessionalsRequest {
   radio_km?: number; // Default: 10
   incluir_fuera_de_radio?: boolean; // Default: false
   solo_disponibles_ahora?: boolean; // Default: false
+  rating_min?: number; // Filtro adicional
+  tarifa_min?: number; // Filtro adicional
+  tarifa_max?: number; // Filtro adicional
+  skip?: number; // Paginación - offset
+  limit?: number; // Paginación - cuántos resultados
+  ordenar_por?: 'rating' | 'precio' | 'distancia'; // Ordenamiento
 }
 
 export interface SearchResult {
