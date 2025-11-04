@@ -17,7 +17,7 @@ from geoalchemy2.elements import WKTElement
 from shared.core.database import get_db
 from shared.core.security import get_current_user, get_current_active_user
 from shared.models.user import User
-from shared.models.professional import Professional
+from shared.models.professional import Profesional
 from shared.models.oficio import Oficio
 from shared.models.portfolio import PortfolioItem, PortfolioImagen
 from shared.models.trabajo import Trabajo
@@ -76,8 +76,8 @@ async def get_my_professional_profile(
             detail="Solo los profesionales pueden acceder a este endpoint"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -101,8 +101,8 @@ async def update_my_professional_profile(
             detail="Solo los profesionales pueden actualizar su perfil"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -136,8 +136,8 @@ async def submit_kyc(
             detail="Solo los profesionales pueden enviar KYC"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -147,17 +147,17 @@ async def submit_kyc(
         )
     
     # Actualizar documentos KYC
-    professional.kyc_document_front = kyc_data.document_front_url
-    professional.kyc_document_back = kyc_data.document_back_url
-    professional.kyc_selfie = kyc_data.selfie_url
-    professional.kyc_status = KYCStatus.PENDIENTE
-    professional.kyc_submitted_at = datetime.utcnow()
+    Profesional.kyc_document_front = kyc_data.document_front_url
+    Profesional.kyc_document_back = kyc_data.document_back_url
+    Profesional.kyc_selfie = kyc_data.selfie_url
+    Profesional.kyc_status = KYCStatus.PENDIENTE
+    Profesional.kyc_submitted_at = datetime.utcnow()
     
     db.commit()
     
     return {
         "message": "KYC enviado correctamente",
-        "status": professional.kyc_status
+        "status": Profesional.kyc_status
     }
 
 @app.get("/professional/kyc/status", response_model=KYCStatusResponse)
@@ -172,8 +172,8 @@ async def get_kyc_status(
             detail="Solo los profesionales pueden ver su estado KYC"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -183,10 +183,10 @@ async def get_kyc_status(
         )
     
     return {
-        "status": professional.kyc_status,
-        "submitted_at": professional.kyc_submitted_at,
-        "reviewed_at": professional.kyc_reviewed_at,
-        "rejection_reason": professional.kyc_rejection_reason
+        "status": Profesional.kyc_status,
+        "submitted_at": Profesional.kyc_submitted_at,
+        "reviewed_at": Profesional.kyc_reviewed_at,
+        "rejection_reason": Profesional.kyc_rejection_reason
     }
 
 # ============================================================================
@@ -205,8 +205,8 @@ async def get_my_portfolio(
             detail="Solo los profesionales tienen portfolio"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -216,7 +216,7 @@ async def get_my_portfolio(
         )
     
     portfolio_items = db.query(PortfolioItem).filter(
-        PortfolioItem.professional_id == professional.id
+        PortfolioItem.professional_id == Profesional.id
     ).all()
     
     return portfolio_items
@@ -234,8 +234,8 @@ async def add_portfolio_item(
             detail="Solo los profesionales pueden agregar items al portfolio"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -245,7 +245,7 @@ async def add_portfolio_item(
         )
     
     new_item = PortfolioItem(
-        professional_id=professional.id,
+        professional_id=Profesional.id,
         **item_data.dict()
     )
     
@@ -268,8 +268,8 @@ async def delete_portfolio_item(
             detail="Solo los profesionales pueden eliminar items de su portfolio"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -280,7 +280,7 @@ async def delete_portfolio_item(
     
     item = db.query(PortfolioItem).filter(
         PortfolioItem.id == item_id,
-        PortfolioItem.professional_id == professional.id
+        PortfolioItem.professional_id == Profesional.id
     ).first()
     
     if not item:
@@ -306,8 +306,8 @@ async def update_portfolio_item(
             detail="Solo los profesionales pueden actualizar items de su portfolio"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -318,7 +318,7 @@ async def update_portfolio_item(
     
     item = db.query(PortfolioItem).filter(
         PortfolioItem.id == item_id,
-        PortfolioItem.professional_id == professional.id
+        PortfolioItem.professional_id == Profesional.id
     ).first()
     
     if not item:
@@ -350,8 +350,8 @@ async def add_portfolio_images(
             detail="Solo los profesionales pueden agregar imágenes a su portfolio"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -362,7 +362,7 @@ async def add_portfolio_images(
     
     item = db.query(PortfolioItem).filter(
         PortfolioItem.id == item_id,
-        PortfolioItem.professional_id == professional.id
+        PortfolioItem.professional_id == Profesional.id
     ).first()
     
     if not item:
@@ -407,8 +407,8 @@ async def delete_portfolio_image(
             detail="Solo los profesionales pueden eliminar imágenes de su portfolio"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -420,7 +420,7 @@ async def delete_portfolio_image(
     # Verificar que el item pertenece al profesional
     item = db.query(PortfolioItem).filter(
         PortfolioItem.id == item_id,
-        PortfolioItem.professional_id == professional.id
+        PortfolioItem.professional_id == Profesional.id
     ).first()
     
     if not item:
@@ -460,8 +460,8 @@ async def get_my_oficios(
             detail="Solo los profesionales tienen oficios"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -471,7 +471,7 @@ async def get_my_oficios(
         )
     
     oficios = db.query(Oficio).filter(
-        Oficio.professional_id == professional.id
+        Oficio.professional_id == Profesional.id
     ).all()
     
     return oficios
@@ -489,8 +489,8 @@ async def add_oficio(
             detail="Solo los profesionales pueden agregar oficios"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -500,7 +500,7 @@ async def add_oficio(
         )
     
     new_oficio = Oficio(
-        professional_id=professional.id,
+        professional_id=Profesional.id,
         **oficio_data.dict()
     )
     
@@ -523,8 +523,8 @@ async def delete_oficio(
             detail="Solo los profesionales pueden eliminar oficios"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -535,7 +535,7 @@ async def delete_oficio(
     
     oficio = db.query(Oficio).filter(
         Oficio.id == oficio_id,
-        Oficio.professional_id == professional.id
+        Oficio.professional_id == Profesional.id
     ).first()
     
     if not oficio:
@@ -564,8 +564,8 @@ async def get_my_trabajos(
             detail="Solo los profesionales pueden ver sus trabajos"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -597,8 +597,8 @@ async def get_my_ofertas(
             detail="Solo los profesionales pueden ver sus ofertas"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -638,10 +638,10 @@ async def search_professionals(
     - Cache de resultados (3 minutos)
     """
     
-    query = db.query(Professional).join(User).filter(
+    query = db.query(Profesional).join(User).filter(
         User.is_active == True,
         User.role == UserRole.PROFESIONAL,
-        Professional.kyc_status == KYCStatus.APROBADO
+        Profesional.kyc_status == KYCStatus.APROBADO
     )
     
     # Filtro geoespacial si se proporciona ubicación
@@ -651,7 +651,7 @@ async def search_professionals(
         
         query = query.filter(
             ST_DWithin(
-                Professional.ubicacion,
+                Profesional.ubicacion,
                 point,
                 radius_meters
             )
@@ -667,7 +667,7 @@ async def search_professionals(
     if search_params.habilidades:
         query = query.filter(
             or_(*[
-                Professional.habilidades.contains([skill])
+                Profesional.habilidades.contains([skill])
                 for skill in search_params.habilidades
             ])
         )
@@ -675,38 +675,38 @@ async def search_professionals(
     # Filtro por rating mínimo
     if search_params.rating_minimo:
         query = query.filter(
-            Professional.rating_promedio >= search_params.rating_minimo
+            Profesional.rating_promedio >= search_params.rating_minimo
         )
     
     # Filtro por rango de precios
     if hasattr(search_params, 'precio_minimo') and search_params.precio_minimo:
-        query = query.filter(Professional.tarifa_por_hora >= search_params.precio_minimo)
+        query = query.filter(Profesional.tarifa_por_hora >= search_params.precio_minimo)
     
     if hasattr(search_params, 'precio_maximo') and search_params.precio_maximo:
-        query = query.filter(Professional.tarifa_por_hora <= search_params.precio_maximo)
+        query = query.filter(Profesional.tarifa_por_hora <= search_params.precio_maximo)
     
     # Filtro por disponibilidad
     if hasattr(search_params, 'disponible') and search_params.disponible:
-        query = query.filter(Professional.disponible == True)
+        query = query.filter(Profesional.disponible == True)
     
     # Ordenamiento
     if search_params.ordenar_por == "rating":
-        query = query.order_by(Professional.rating_promedio.desc())
+        query = query.order_by(Profesional.rating_promedio.desc())
     elif search_params.ordenar_por == "precio":
-        query = query.order_by(Professional.tarifa_por_hora.asc())
+        query = query.order_by(Profesional.tarifa_por_hora.asc())
     elif search_params.ordenar_por == "distancia" and search_params.latitude and search_params.longitude:
         # Ordenar por distancia
         point = WKTElement(f'POINT({search_params.longitude} {search_params.latitude})', srid=4326)
         query = query.order_by(
-            func.ST_Distance(Professional.ubicacion, point)
+            func.ST_Distance(Profesional.ubicacion, point)
         )
     elif search_params.ordenar_por == "trabajos":
-        query = query.order_by(Professional.trabajos_completados.desc())
+        query = query.order_by(Profesional.trabajos_completados.desc())
     else:
         # Por defecto, ordenar por rating y luego por trabajos completados
         query = query.order_by(
-            Professional.rating_promedio.desc(),
-            Professional.trabajos_completados.desc()
+            Profesional.rating_promedio.desc(),
+            Profesional.trabajos_completados.desc()
         )
     
     # Paginación
@@ -720,13 +720,13 @@ async def search_professionals(
         if search_params.latitude and search_params.longitude:
             point = WKTElement(f'POINT({search_params.longitude} {search_params.latitude})', srid=4326)
             distance = db.query(
-                func.ST_Distance(Professional.ubicacion, point)
-            ).filter(Professional.id == prof.id).scalar()
+                func.ST_Distance(Profesional.ubicacion, point)
+            ).filter(Profesional.id == prof.id).scalar()
             distance_km = distance / 1000 if distance else None
         
         results.append(ProfessionalSearchResult(
             id=prof.id,
-            user_id=prof.user_id,
+            user_id=prof.usuario_id,
             nombre_completo=prof.nombre_completo,
             biografia=prof.biografia,
             rating_promedio=prof.rating_promedio,
@@ -755,8 +755,8 @@ async def get_public_professional_profile(
     db: Session = Depends(get_db)
 ):
     """Obtiene el perfil público de un profesional"""
-    professional = db.query(Professional).filter(
-        Professional.id == prof_id
+    professional = db.query(Profesional).filter(
+        Profesional.id == prof_id
     ).first()
     
     if not professional:
@@ -766,8 +766,8 @@ async def get_public_professional_profile(
         )
     
     # Verificar que el usuario esté activo y el KYC aprobado
-    user = db.query(User).filter(User.id == professional.user_id).first()
-    if not user or not user.is_active or professional.kyc_status != KYCStatus.APROBADO:
+    user = db.query(User).filter(User.id == Profesional.usuario_id).first()
+    if not user or not user.is_active or Profesional.kyc_status != KYCStatus.APROBADO:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Profesional no disponible"
@@ -781,8 +781,8 @@ async def get_public_portfolio(
     db: Session = Depends(get_db)
 ):
     """Obtiene el portfolio público de un profesional"""
-    professional = db.query(Professional).filter(
-        Professional.id == prof_id
+    professional = db.query(Profesional).filter(
+        Profesional.id == prof_id
     ).first()
     
     if not professional:
@@ -828,8 +828,8 @@ async def get_pending_kyc(
             detail="Solo los administradores pueden acceder a este endpoint"
         )
     
-    pending_kycs = db.query(Professional).filter(
-        Professional.kyc_status == KYCStatus.PENDIENTE
+    pending_kycs = db.query(Profesional).filter(
+        Profesional.kyc_status == KYCStatus.PENDIENTE
     ).all()
     
     return pending_kycs
@@ -847,8 +847,8 @@ async def approve_kyc(
             detail="Solo los administradores pueden aprobar KYC"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.id == prof_id
+    professional = db.query(Profesional).filter(
+        Profesional.id == prof_id
     ).first()
     
     if not professional:
@@ -879,8 +879,8 @@ async def reject_kyc(
             detail="Solo los administradores pueden rechazar KYC"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.id == prof_id
+    professional = db.query(Profesional).filter(
+        Profesional.id == prof_id
     ).first()
     
     if not professional:
@@ -984,18 +984,18 @@ async def crear_servicio_publicado(
         )
     
     # Verificar que el profesional existe, o crear uno si es ADMIN
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
         # Si es ADMIN, crear perfil profesional automáticamente
         if current_user.rol == UserRole.ADMIN:
-            professional = Professional(
-                user_id=current_user.id,
+            professional = Profesional(
+                usuario_id=current_user.id,
                 nivel='ORO',  # Dar nivel ORO a los admins
-                puntos_xp=5000,
-                comision_porcentaje=10.0  # Comisión reducida para admins
+                puntos_experiencia=5000,
+                tasa_comision_actual=10.0  # Comisión reducida para admins
             )
             db.add(professional)
             db.commit()
@@ -1020,7 +1020,7 @@ async def crear_servicio_publicado(
         descripcion=servicio_data.descripcion,
         precio_fijo=servicio_data.precio_fijo,
         oficio_id=servicio_data.oficio_id,
-        profesional_id=professional.id
+        profesional_id=Profesional.id
     )
     
     db.add(nuevo_servicio)
@@ -1043,14 +1043,14 @@ async def listar_mis_servicios(
             detail="Solo los profesionales pueden ver sus servicios"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
         # Si es ADMIN, crear perfil profesional automáticamente
         if current_user.rol == UserRole.ADMIN:
-            professional = Professional(
+            professional = Profesional(
                 user_id=current_user.id,
                 nivel='ORO',
                 puntos_xp=5000,
@@ -1066,7 +1066,7 @@ async def listar_mis_servicios(
             )
     
     servicios = db.query(ServicioInstantaneo).filter(
-        ServicioInstantaneo.profesional_id == professional.id
+        ServicioInstantaneo.profesional_id == Profesional.id
     ).all()
     
     return servicios
@@ -1088,8 +1088,8 @@ async def actualizar_servicio(
             detail="Solo los profesionales pueden actualizar servicios"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -1100,7 +1100,7 @@ async def actualizar_servicio(
     
     servicio = db.query(ServicioInstantaneo).filter(
         ServicioInstantaneo.id == servicio_id,
-        ServicioInstantaneo.profesional_id == professional.id
+        ServicioInstantaneo.profesional_id == Profesional.id
     ).first()
     
     if not servicio:
@@ -1138,8 +1138,8 @@ async def eliminar_servicio(
             detail="Solo los profesionales pueden eliminar servicios"
         )
     
-    professional = db.query(Professional).filter(
-        Professional.user_id == current_user.id
+    professional = db.query(Profesional).filter(
+        Profesional.usuario_id == current_user.id
     ).first()
     
     if not professional:
@@ -1150,7 +1150,7 @@ async def eliminar_servicio(
     
     servicio = db.query(ServicioInstantaneo).filter(
         ServicioInstantaneo.id == servicio_id,
-        ServicioInstantaneo.profesional_id == professional.id
+        ServicioInstantaneo.profesional_id == Profesional.id
     ).first()
     
     if not servicio:
@@ -1193,7 +1193,7 @@ async def listar_servicios_publicos(
             "fecha_creacion": servicio.fecha_creacion,
             "profesional": {
                 "id": servicio.profesional.id,
-                "user_id": servicio.profesional.user_id,
+                "user_id": servicio.profesional.usuario_id,
                 "nombre": servicio.profesional.user.full_name if servicio.profesional.user else None,
                 "email": servicio.profesional.user.email if servicio.profesional.user else None,
                 "nivel": servicio.profesional.nivel.value if servicio.profesional.nivel else None,
@@ -1212,3 +1212,6 @@ async def listar_servicios_publicos(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8003)
+
+
+

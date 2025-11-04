@@ -4,7 +4,7 @@ Gestión de perfiles de usuario
 """
 from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, or_
 from sqlalchemy.orm import sessionmaker
 import os
 import sys
@@ -77,6 +77,37 @@ def read_me(current_user: Usuario = Depends(get_current_user)):
     Requiere token JWT en header Authorization
     """
     return current_user
+
+@app.get("/users/search")
+def search_users_public(
+    q: str,
+    current_user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Busca usuarios por email o nombre (requiere autenticación)
+    """
+    users = db.query(Usuario).filter(
+        or_(
+            Usuario.email.ilike(f"%{q}%"),
+            Usuario.nombre.ilike(f"%{q}%"),
+            Usuario.apellido.ilike(f"%{q}%")
+        ),
+        Usuario.is_active == True
+    ).limit(20).all()
+    
+    return [
+        {
+            "id": str(u.id),
+            "email": u.email,
+            "nombre": u.nombre,
+            "apellido": u.apellido,
+            "rol": u.rol.value,
+            "is_active": u.is_active,
+            "avatar_url": u.avatar_url,
+        }
+        for u in users
+    ]
 
 @app.put("/users/me", response_model=UserRead)
 def update_me(

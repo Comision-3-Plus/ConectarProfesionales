@@ -33,8 +33,10 @@ export function middleware(request: NextRequest) {
   }
 
   if ((pathname === '/login' || pathname === '/register') && token) {
-    console.log('[MIDDLEWARE] REDIRECT to /', { pathname });
-    return NextResponse.redirect(new URL('/', request.url));
+    console.log('[MIDDLEWARE] User already authenticated, allowing through', { pathname });
+    // Permitir que el usuario vea la página de login/register aunque esté autenticado
+    // La lógica de redirección después del login se maneja en el componente
+    return NextResponse.next();
   }
 
   const response = NextResponse.next();

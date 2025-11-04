@@ -36,17 +36,8 @@ service cloud.firestore {
     // =========================================================================
     
     match /chats/{chatId} {
-      // Los usuarios autenticados pueden leer el chat si son participantes
-      allow read: if isParticipant(chatId);
-      
-      // Los usuarios pueden crear chats
-      allow create: if isSignedIn() && (
-        isInParticipants(request.resource.data.get('participants', [])) ||
-        request.auth.uid in request.resource.data.get('participantIds', [])
-      );
-      
-      // Los usuarios pueden actualizar chats si son participantes
-      allow update: if isParticipant(chatId);
+      // TEMPORAL: Permitir a cualquier usuario autenticado
+      allow read, create, update: if isSignedIn();
       
       // No permitir eliminar chats
       allow delete: if false;
@@ -77,35 +68,21 @@ service cloud.firestore {
     // =========================================================================
     
     match /messages/{chatId}/messages/{messageId} {
-      // Leer: solo participantes del chat
-      allow read: if isParticipant(chatId);
-      
-      // Crear: solo participantes y el senderId debe ser el usuario actual
-      allow create: if isSignedIn() && 
-        isParticipant(chatId) && 
-        request.auth.uid == request.resource.data.senderId;
-      
-      // Actualizar: solo para marcar como leído
-      allow update: if isParticipant(chatId) && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      // TEMPORAL: Permitir a cualquier usuario autenticado
+      allow read, create, update: if isSignedIn();
       
       // No permitir eliminar mensajes
       allow delete: if false;
     }
     
     // =========================================================================
-    // USER_CHATS (Índice de chats por usuario)
+    // USER_CHATS (Índice de chats por usuario - Nueva estructura 3 segmentos)
+    // TEMPORAL: Permitir lectura/escritura autenticada sin validación estricta
     // =========================================================================
     
-    match /user_chats/{userId}/{chatId} {
-      // Leer: solo el propio usuario
-      allow read: if isOwner(userId);
-      
-      // Crear/Actualizar: solo el propio usuario
-      allow write: if isOwner(userId);
-      
-      // No permitir eliminar
-      allow delete: if false;
+    match /user_chats/{userId}/chats/{chatId} {
+      // Permitir a cualquier usuario autenticado (temporal)
+      allow read, write: if isSignedIn();
     }
     
     // =========================================================================

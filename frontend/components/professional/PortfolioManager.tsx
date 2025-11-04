@@ -33,25 +33,22 @@ export function PortfolioManager() {
   // Query para obtener portfolio
   const { data: rawPortfolio, isLoading } = useQuery({
     queryKey: ['profesional-portfolio'],
-    queryFn: professionalService.listPortfolioItems,
+    queryFn: professionalService.listPortfolio,
   });
 
   // Convertir a formato esperado
-  const portfolio: PortfolioImage[] = rawPortfolio?.map(item => ({
+  const portfolio: PortfolioImage[] = rawPortfolio && Array.isArray(rawPortfolio) ? rawPortfolio.map((item) => ({
     id: item.id,
-    url: item.imagenes?.[0] || '/placeholder.jpg',
+    url: item.imagenes?.[0]?.imagen_url || '/placeholder.jpg',
     titulo: item.titulo,
     descripcion: item.descripcion,
-  })) || [];
+  })) : [];
 
   // Mutation para agregar imagen
   const addImageMutation = useMutation({
     mutationFn: (data: typeof imageForm) => professionalService.createPortfolioItem({
       titulo: data.titulo || 'Sin título',
-      descripcion: data.descripcion,
-      // El backend requiere estos campos
-      categoria: 'OTRO',
-      fecha_completado: new Date().toISOString().split('T')[0],
+      descripcion: data.descripcion || '',
     }),
     onSuccess: () => {
       toast.success('✅ Portfolio actualizado - La función completa de imágenes estará disponible próximamente');

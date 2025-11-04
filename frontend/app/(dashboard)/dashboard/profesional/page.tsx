@@ -24,9 +24,7 @@ import {
   XCircle,
   AlertCircle,
   MessageCircle,
-  Calendar,
-  Image as ImageIcon,
-  Plus
+  Calendar
 } from 'lucide-react';
 import { professionalService } from '@/lib/services';
 import { TrabajoRead, OfertaRead } from '@/types';
@@ -35,6 +33,7 @@ import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { GraficosIngresos } from '@/components/features/GraficosIngresos';
 import { ActividadReciente } from '@/components/features/ActividadReciente';
+import { PortfolioManager } from '@/components/professional/PortfolioManager';
 
 // Tipo temporal para profile hasta que se actualice el tipo oficial
 type ProfileData = {
@@ -106,10 +105,6 @@ export default function ProfesionalDashboardPage() {
   // Handlers
   const handleChat = () => {
     router.push('/dashboard/profesional/chat');
-  };
-
-  const handleAddPortfolio = () => {
-    toast.info('Función de portfolio próximamente');
   };
 
   const handleEditProfile = () => {
@@ -457,32 +452,7 @@ export default function ProfesionalDashboardPage() {
 
         {/* Tab: Portfolio */}
         <TabsContent value="portfolio" className="space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Mi Portfolio</CardTitle>
-                <CardDescription>
-                  Muestra tus mejores trabajos realizados
-                </CardDescription>
-              </div>
-              <Button
-                onClick={handleAddPortfolio}
-                className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Agregar Trabajo
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="text-center py-12">
-                <ImageIcon className="h-12 w-12 text-slate-300 mx-auto mb-4" />
-                <p className="text-slate-500 font-medium">Portfolio próximamente</p>
-                <p className="text-sm text-slate-400 mt-1">
-                  Podrás subir fotos de tus trabajos realizados
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          <PortfolioManager />
         </TabsContent>
       </Tabs>
     </div>

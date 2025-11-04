@@ -25,32 +25,33 @@ export const adminService = {
   // ==========================================
 
   /**
-   * GET /api/v1/admin/kyc/pendientes
+   * GET /api/v1/admin/kyc/pending
    * Listar profesionales con KYC en revisión
    */
   listPendingKYC: async (): Promise<ProfessionalPendingReview[]> => {
-    const response = await api.get<ProfessionalPendingReview[]>('/admin/kyc/pendientes');
+    const response = await api.get<ProfessionalPendingReview[]>('/admin/kyc/pending');
     return response.data;
   },
 
   /**
-   * POST /api/v1/admin/kyc/approve/{profesional_id}
+   * PUT /api/v1/admin/kyc/{profesional_id}/approve
    * Aprobar KYC de un profesional
    */
-  approveKYC: async (profesionalId: string): Promise<{ status: string; profesional_id: string }> => {
-    const response = await api.post<{ status: string; profesional_id: string }>(
-      `/admin/kyc/approve/${profesionalId}`
+  approveKYC: async (profesionalId: string): Promise<{ message: string }> => {
+    const response = await api.put<{ message: string }>(
+      `/admin/kyc/${profesionalId}/approve`
     );
     return response.data;
   },
 
   /**
-   * POST /api/v1/admin/kyc/reject/{profesional_id}
+   * PUT /api/v1/admin/kyc/{profesional_id}/reject
    * Rechazar KYC de un profesional
    */
-  rejectKYC: async (profesionalId: string): Promise<{ status: string; profesional_id: string }> => {
-    const response = await api.post<{ status: string; profesional_id: string }>(
-      `/admin/kyc/reject/${profesionalId}`
+  rejectKYC: async (profesionalId: string, reason?: string): Promise<{ message: string; reason?: string }> => {
+    const response = await api.put<{ message: string; reason?: string }>(
+      `/admin/kyc/${profesionalId}/reject`,
+      { reason }
     );
     return response.data;
   },

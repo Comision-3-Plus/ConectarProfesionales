@@ -1,132 +1,173 @@
-<<<<<<< HEAD
-/**
- * Componente: ChatWindow
- * Ventana de chat en tiempo real con Firestore
- */
 
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import { useChat } from '@/hooks/useChat';
+import { useAuthStore } from '@/store/authStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Send, Image as ImageIcon, Loader2 } from 'lucide-react';
-import { useAuthStore } from '@/store/authStore';
-import { storageService } from '@/lib/firebase/storage.service';
-import { analyticsService } from '@/lib/firebase/analytics.service';
+import { Send, Loader2, Image as ImageIcon, X, MoreVertical, Phone, Video } from 'lucide-react';
 import { toast } from 'sonner';
-import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+import { format, isToday, isYesterday } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { chatService } from '@/lib/firebase/chat.service';
 
 interface ChatWindowProps {
   chatId: string;
   otherUserName: string;
   otherUserPhoto?: string;
-  trabajoId?: string;
 }
 
-export function ChatWindow({ 
-  chatId, 
-  otherUserName, 
-  otherUserPhoto,
-  trabajoId 
-}: ChatWindowProps) {
+export function ChatWindow({ chatId, otherUserName, otherUserPhoto }: ChatWindowProps) {
   const { user } = useAuthStore();
-  const { messages, isLoading, sendMessage, sendImageMessage, markAsRead } = useChat({ 
-    chatId 
-  });
-  
-  const [inputText, setInputText] = useState('');
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const { messages, isSending, sendMessage, markAsRead } = useChat({ chatId });
+  const [newMessage, setNewMessage] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll al final cuando llegan nuevos mensajes
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-  // Marcar mensajes como leídos cuando se abre el chat
-  useEffect(() => {
-    if (!isLoading && messages.length > 0) {
-      markAsRead();
-    }
-  }, [isLoading, messages.length, markAsRead]);
-
-  const handleSend = async () => {
-    if (!inputText.trim()) return;
-    
-    try {
-      await sendMessage(inputText);
-      setInputText('');
-      
-      // Track en Analytics
-      analyticsService.trackMessageSend(chatId, 'text');
-    } catch (error) {
-      toast.error('Error al enviar mensaje');
+  // Scroll suave solo cuando se envía un nuevo mensaje
+  const scrollToBottom = () => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
+  // Scroll inicial al cargar el chat
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [chatId]);
 
-    // Validar imagen
-    const validation = storageService.validateImageFile(file);
-    if (!validation.valid) {
-      toast.error(validation.error);
+  // Scroll cuando se envía un mensaje nuevo (solo si el usuario está cerca del final)
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      const container = messagesContainerRef.current;
+      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+      
+      if (isNearBottom || messages.length === 0) {
+        scrollToBottom();
+      }
+    }
+  }, [messages]);
+
+  // Marcar como leídos al abrir el chat
+  useEffect(() => {
+    if (chatId && user) {
+      markAsRead();
+    }
+  }, [chatId, user, markAsRead]);
+
+  // Manejar selección de imagen
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validar tipo de archivo
+    if (!file.type.startsWith('image/')) {
+      toast.error('Por favor selecciona una imagen válida');
       return;
     }
 
-    setUploadingImage(true);
-    setUploadProgress(0);
+    // Validar tamaño (máx 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('La imagen debe ser menor a 5MB');
+      return;
+    }
 
-    try {
-      // Comprimir imagen
-      const compressedFile = await storageService.compressImage(file);
-      
-      // Subir a Firebase Storage
-      const imageUrl = await storageService.uploadChatImage(
-        chatId,
-        compressedFile,
-        (progress) => {
-          setUploadProgress(progress.progress);
-        }
-      );
+    setImageFile(file);
+    
+    // Crear preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
-      // Enviar mensaje con imagen
-      await sendImageMessage(imageUrl, '');
-      
-      // Track en Analytics
-      analyticsService.trackMessageSend(chatId, 'image');
-      
-      toast.success('Imagen enviada');
-    } catch (error) {
-      console.error('Error al subir imagen:', error);
-      toast.error('Error al enviar imagen');
-    } finally {
-      setUploadingImage(false);
-      setUploadProgress(0);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+  // Eliminar imagen seleccionada
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
-  const formatMessageTime = (timestamp: any) => {
+  // Enviar imagen
+  const handleSendImage = async () => {
+    if (!imageFile || !user) return;
+
+    setIsUploadingImage(true);
+    try {
+      // Convertir imagen a Base64
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64String = reader.result as string;
+        
+        await chatService.sendImageMessage(
+          chatId,
+          user.id.toString(),
+          base64String,
+          newMessage.trim() || '📷 Imagen',
+          user.nombre || 'Usuario',
+          user.avatar_url
+        );
+
+        // Limpiar
+        setNewMessage('');
+        handleRemoveImage();
+        toast.success('Imagen enviada');
+      };
+      reader.readAsDataURL(imageFile);
+    } catch (error) {
+      console.error('❌ Error al enviar imagen:', error);
+      toast.error('Error al enviar la imagen');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  // Enviar mensaje de texto
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Si hay imagen, enviar imagen
+    if (imagePreview) {
+      await handleSendImage();
+      return;
+    }
+
+    // Si no hay texto, no enviar
+    if (!newMessage.trim() || isSending) return;
+
+    await sendMessage(newMessage);
+    setNewMessage('');
+  };
+
+  // Formatear timestamp con mejor lógica
+  const formatTime = (timestamp: unknown) => {
     if (!timestamp) return '';
     
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-
-    if (diffInHours < 24) {
-      return format(date, 'HH:mm', { locale: es });
-    } else {
-      return format(date, 'dd/MM/yy HH:mm', { locale: es });
+    try {
+      const date = (timestamp as any).toDate ? (timestamp as any).toDate() : new Date(timestamp as any);
+      
+      if (isToday(date)) {
+        return format(date, 'HH:mm', { locale: es });
+      } else if (isYesterday(date)) {
+        return `Ayer ${format(date, 'HH:mm', { locale: es })}`;
+      } else {
+        return format(date, 'dd MMM HH:mm', { locale: es });
+      }
+    } catch {
+      return '';
     }
   };
 
@@ -139,432 +180,270 @@ export function ChatWindow({
       .substring(0, 2);
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-=======
-'use client';
-
-import { useState, useEffect, useRef } from 'react';
-import { chatService, ChatMessage } from '@/lib/services/chatService';
-import { useAuth } from '@/hooks/useAuth';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Label } from '@/components/ui/label';
-import { Send, DollarSign, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
-
-interface ChatWindowProps {
-  chatId: string;
-  otherUserId: string;
-  otherUserName: string;
-  canSendOffers?: boolean;
-}
-
-export function ChatWindow({ chatId, otherUserId, otherUserName, canSendOffers = false }: ChatWindowProps) {
-  const { user } = useAuth();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [sending, setSending] = useState(false);
-  const [showOfferDialog, setShowOfferDialog] = useState(false);
-  const [offerForm, setOfferForm] = useState({
-    descripcion: '',
-    precio_final: '',
-  });
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  // Scroll automático al final
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Suscribirse a mensajes en tiempo real
-  useEffect(() => {
-    if (!chatId) return;
-
-    const unsubscribe = chatService.subscribeToMessages(chatId, (newMessages) => {
-      setMessages(newMessages);
-    });
-
-    // Marcar como leídos al abrir
-    if (user) {
-      chatService.markAsRead(chatId, user.id);
-    }
-
-    return () => {
-      unsubscribe();
-    };
-  }, [chatId, user]);
-
-  // Enviar mensaje de texto
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!newMessage.trim() || !user) return;
-
-    setSending(true);
-    try {
-      await chatService.sendMessage(chatId, user.id, user.nombre, newMessage);
-      setNewMessage('');
-    } catch (error) {
-      toast.error('Error al enviar mensaje');
-      console.error(error);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  // Enviar oferta formal
-  const handleSendOffer = async () => {
-    if (!offerForm.descripcion.trim() || !offerForm.precio_final || !user) {
-      toast.error('Completa todos los campos de la oferta');
-      return;
-    }
-
-    const precio = parseFloat(offerForm.precio_final);
-    if (isNaN(precio) || precio <= 0) {
-      toast.error('Precio inválido');
-      return;
-    }
-
-    setSending(true);
-    try {
-      await chatService.sendOfferMessage(chatId, user.id, user.nombre, {
-        descripcion: offerForm.descripcion,
-        precio_final: precio,
-        cliente_id: otherUserId,
-      });
-
-      toast.success('✅ Oferta enviada correctamente');
-      setShowOfferDialog(false);
-      setOfferForm({ descripcion: '', precio_final: '' });
-    } catch (error) {
-      toast.error('Error al enviar oferta');
-      console.error(error);
-    } finally {
-      setSending(false);
-    }
-  };
-
-  // Formatear timestamp
-  const formatTime = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-
-    if (isToday) {
-      return date.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-    }
-    return date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-  };
-
   if (!user) {
     return (
       <div className="flex items-center justify-center p-8">
         <p className="text-muted-foreground">Debes iniciar sesión para chatear</p>
->>>>>>> e0e3f7b6eb4bede5e72e5099eb70a3525837cb2f
       </div>
     );
   }
 
   return (
-<<<<<<< HEAD
-    <div className="flex flex-col h-full border rounded-lg bg-background">
-      {/* Header */}
-      <div className="flex items-center gap-3 p-4 border-b bg-muted/50">
-        <Avatar>
-          <AvatarImage src={otherUserPhoto} alt={otherUserName} />
-          <AvatarFallback>{getInitials(otherUserName)}</AvatarFallback>
-        </Avatar>
-        <div className="flex-1">
-          <h3 className="font-semibold">{otherUserName}</h3>
-          {trabajoId && (
-            <p className="text-xs text-muted-foreground">Trabajo #{trabajoId}</p>
-          )}
-        </div>
-      </div>
-
-      {/* Messages */}
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-4">
-          {messages.length === 0 ? (
-            <div className="text-center text-muted-foreground py-8">
-              <p>No hay mensajes aún</p>
-              <p className="text-sm">Envía el primer mensaje para iniciar la conversación</p>
+    <div className="flex flex-col h-full bg-gradient-to-b from-background to-muted/20">
+      {/* Header Mejorado */}
+      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-10">
+        <div className="flex items-center justify-between p-4">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Avatar className="h-11 w-11 ring-2 ring-primary/10">
+                <AvatarImage src={otherUserPhoto} alt={otherUserName} />
+                <AvatarFallback className="bg-gradient-to-br from-primary/20 to-primary/10 text-primary font-semibold">
+                  {getInitials(otherUserName)}
+                </AvatarFallback>
+              </Avatar>
+              {/* Indicador online (opcional) */}
+              <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-500 ring-2 ring-background" />
             </div>
-          ) : (
-            messages.map((msg) => {
-              const isOwn = msg.senderId === user?.id;
-              
-              return (
-                <div
-                  key={msg.id}
-                  className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`flex gap-2 max-w-[70%] ${isOwn ? 'flex-row-reverse' : ''}`}>
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src={msg.senderPhoto} alt={msg.senderName} />
-                      <AvatarFallback>
-                        {msg.senderName ? getInitials(msg.senderName) : '?'}
-                      </AvatarFallback>
-                    </Avatar>
-                    
-                    <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
-                      {!isOwn && (
-                        <span className="text-xs text-muted-foreground mb-1">
-                          {msg.senderName}
-                        </span>
-                      )}
-                      
-                      <div
-                        className={`rounded-lg p-3 ${
-                          isOwn
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted'
-                        }`}
-                      >
-                        {msg.type === 'image' && msg.imageUrl && (
-                          <img
-                            src={msg.imageUrl}
-                            alt="Imagen compartida"
-                            className="rounded-md mb-2 max-w-full h-auto"
-                            loading="lazy"
-                          />
-                        )}
-                        
-                        {msg.text && (
-                          <p className="text-sm whitespace-pre-wrap break-words">
-                            {msg.text}
-                          </p>
-                        )}
-                        
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs opacity-70">
-                            {formatMessageTime(msg.timestamp)}
-                          </span>
-                          {isOwn && msg.read && (
-                            <span className="text-xs opacity-70">✓✓</span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-          <div ref={scrollRef} />
-        </div>
-      </ScrollArea>
+            <div className="flex flex-col">
+              <h3 className="font-semibold text-base">{otherUserName}</h3>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                Conectado
+              </p>
+            </div>
+          </div>
 
-      {/* Upload Progress */}
-      {uploadingImage && (
-        <div className="px-4 py-2 border-t bg-muted/30">
+          {/* Botones de acciones (opcional) */}
           <div className="flex items-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            <div className="flex-1">
-              <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-primary transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }}
-                />
-              </div>
-            </div>
-            <span className="text-xs text-muted-foreground">
-              {Math.round(uploadProgress)}%
-            </span>
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+              <Phone className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+              <Video className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+              <MoreVertical className="h-4 w-4" />
+            </Button>
           </div>
         </div>
-      )}
-
-      {/* Input */}
-      <div className="p-4 border-t flex gap-2">
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleImageUpload}
-          accept="image/*"
-          className="hidden"
-        />
-        
-        <Button
-          onClick={() => fileInputRef.current?.click()}
-          size="icon"
-          variant="ghost"
-          disabled={uploadingImage}
-        >
-          <ImageIcon className="h-4 w-4" />
-        </Button>
-        
-        <Input
-          value={inputText}
-          onChange={(e) => setInputText(e.target.value)}
-          onKeyPress={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSend();
-            }
-          }}
-          placeholder="Escribe un mensaje..."
-          disabled={uploadingImage}
-          className="flex-1"
-        />
-        
-        <Button 
-          onClick={handleSend} 
-          size="icon"
-          disabled={!inputText.trim() || uploadingImage}
-        >
-          <Send className="h-4 w-4" />
-        </Button>
-      </div>
-=======
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="border-b p-4 flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold">{otherUserName}</h3>
-          <p className="text-sm text-muted-foreground">Chat en vivo</p>
-        </div>
-        {canSendOffers && (
-          <Dialog open={showOfferDialog} onOpenChange={setShowOfferDialog}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <DollarSign className="mr-2 h-4 w-4" />
-                Enviar Oferta
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Enviar Oferta Formal</DialogTitle>
-                <DialogDescription>
-                  Envía una propuesta económica formal al cliente
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="descripcion">Descripción del servicio</Label>
-                  <Textarea
-                    id="descripcion"
-                    placeholder="Describe qué harás y qué incluye..."
-                    value={offerForm.descripcion}
-                    onChange={(e) => setOfferForm({ ...offerForm, descripcion: e.target.value })}
-                    rows={4}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="precio">Precio Final ($)</Label>
-                  <Input
-                    id="precio"
-                    type="number"
-                    min="1"
-                    step="0.01"
-                    placeholder="5000"
-                    value={offerForm.precio_final}
-                    onChange={(e) => setOfferForm({ ...offerForm, precio_final: e.target.value })}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setShowOfferDialog(false)}>
-                  Cancelar
-                </Button>
-                <Button onClick={handleSendOffer} disabled={sending}>
-                  {sending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Enviando...
-                    </>
-                  ) : (
-                    <>
-                      <DollarSign className="mr-2 h-4 w-4" />
-                      Enviar Oferta
-                    </>
-                  )}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        )}
       </div>
 
-      {/* Mensajes */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* Mensajes con mejor diseño */}
+      <div 
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-3 scroll-smooth"
+        style={{ scrollBehavior: 'smooth' }}
+      >
         {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-muted-foreground text-sm">
-              No hay mensajes aún. Inicia la conversación!
+          <div className="flex flex-col items-center justify-center h-full gap-3">
+            <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center">
+              <Send className="h-8 w-8 text-primary/60" />
+            </div>
+            <p className="text-muted-foreground text-sm text-center">
+              No hay mensajes aún.<br />
+              <span className="text-xs">¡Sé el primero en escribir!</span>
             </p>
           </div>
         ) : (
-          messages.map((message) => {
-            const isOwn = message.senderId === user.id;
-            const isOffer = message.type === 'offer';
+          messages.map((message, index) => {
+            const isOwn = message.senderId === user.id.toString();
+            const isImage = message.type === 'image';
+            const showAvatar = !isOwn && (index === 0 || messages[index - 1].senderId !== message.senderId);
 
             return (
               <div
                 key={message.id}
                 className={cn(
-                  'flex',
+                  'flex gap-2 group',
                   isOwn ? 'justify-end' : 'justify-start'
                 )}
               >
+                {/* Avatar solo para otros usuarios y primer mensaje del grupo */}
+                {!isOwn && (
+                  <Avatar className={cn(
+                    "h-8 w-8 mt-1 ring-2 ring-background",
+                    !showAvatar && "invisible"
+                  )}>
+                    <AvatarImage src={message.senderPhoto} alt={message.senderName} />
+                    <AvatarFallback className="text-xs bg-gradient-to-br from-primary/20 to-primary/10">
+                      {getInitials(message.senderName || 'Usuario')}
+                    </AvatarFallback>
+                  </Avatar>
+                )}
+
                 <div
                   className={cn(
-                    'max-w-[70%] rounded-lg p-3',
-                    isOffer
-                      ? 'bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-300'
-                      : isOwn
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted'
+                    'relative max-w-[75%] md:max-w-[60%] rounded-2xl px-4 py-2.5 shadow-sm',
+                    'transition-all duration-200 hover:shadow-md',
+                    isOwn
+                      ? 'bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-tr-sm'
+                      : 'bg-white dark:bg-muted rounded-tl-sm border border-border/50'
                   )}
                 >
-                  {!isOwn && (
-                    <p className="text-xs font-semibold mb-1">{message.senderName}</p>
+                  {/* Nombre del remitente (solo para mensajes de otros) */}
+                  {!isOwn && showAvatar && (
+                    <p className="text-xs font-semibold mb-1.5 text-primary">
+                      {message.senderName}
+                    </p>
                   )}
-                  <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
-                  <p className={cn(
-                    'text-xs mt-1',
-                    isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                  
+                  {/* Imagen */}
+                  {isImage && message.imageUrl && (
+                    <div className="mb-2 rounded-lg overflow-hidden">
+                      <img 
+                        src={message.imageUrl} 
+                        alt="Imagen enviada" 
+                        className="max-w-full h-auto rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={() => window.open(message.imageUrl, '_blank')}
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Texto del mensaje */}
+                  {message.text && (
+                    <p className={cn(
+                      "text-sm leading-relaxed whitespace-pre-wrap",
+                      isOwn ? "text-primary-foreground" : "text-foreground"
+                    )}>
+                      {message.text}
+                    </p>
+                  )}
+                  
+                  {/* Timestamp y estado */}
+                  <div className={cn(
+                    'flex items-center gap-1.5 mt-1',
+                    isOwn ? 'justify-end' : 'justify-start'
                   )}>
-                    {formatTime(message.timestamp)}
-                  </p>
+                    <p className={cn(
+                      'text-[10px] font-medium',
+                      isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                    )}>
+                      {formatTime(message.timestamp)}
+                    </p>
+                    {isOwn && (
+                      <div className="flex gap-0.5">
+                        <div className={cn(
+                          "h-3 w-3 rounded-full flex items-center justify-center",
+                          message.read ? "text-blue-400" : "text-primary-foreground/50"
+                        )}>
+                          <svg viewBox="0 0 16 16" fill="currentColor" className="h-3 w-3">
+                            <path d="M12.5 3.5L5.5 10.5L2.5 7.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                            {message.read && (
+                              <path d="M14.5 3.5L7.5 10.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                            )}
+                          </svg>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {/* Espaciador para mensajes propios */}
+                {isOwn && <div className="w-8" />}
               </div>
             );
           })
         )}
-        <div ref={messagesEndRef} />
       </div>
 
-      {/* Input de mensaje */}
-      <form onSubmit={handleSendMessage} className="border-t p-4">
-        <div className="flex gap-2">
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Escribe un mensaje..."
-            disabled={sending}
-            className="flex-1"
-          />
-          <Button type="submit" disabled={sending || !newMessage.trim()}>
-            {sending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
-      </form>
->>>>>>> e0e3f7b6eb4bede5e72e5099eb70a3525837cb2f
+      {/* Input de mensaje mejorado */}
+      <div className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4">
+        <form onSubmit={handleSendMessage} className="space-y-3">
+          {/* Preview de imagen con mejor diseño */}
+          {imagePreview && (
+            <div className="relative">
+              <div className="relative inline-block group">
+                <div className="relative rounded-xl overflow-hidden border-2 border-primary/20 shadow-lg">
+                  <img 
+                    src={imagePreview} 
+                    alt="Preview" 
+                    className="max-h-48 rounded-xl"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                </div>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon"
+                  className="absolute -top-2 -right-2 h-7 w-7 rounded-full shadow-lg hover:scale-110 transition-transform"
+                  onClick={handleRemoveImage}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2 ml-1">
+                📷 Imagen lista para enviar
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-end gap-2">
+            {/* Input oculto para seleccionar imagen */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageSelect}
+            />
+
+            {/* Botón para adjuntar imagen */}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-10 w-10 rounded-full hover:bg-primary/10 hover:text-primary shrink-0"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isSending || isUploadingImage}
+              title="Adjuntar imagen"
+            >
+              <ImageIcon className="h-5 w-5" />
+            </Button>
+
+            {/* Input mejorado */}
+            <div className="flex-1 relative">
+              <Input
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder={imagePreview ? "Añade un mensaje (opcional)..." : "Escribe tu mensaje..."}
+                disabled={isSending || isUploadingImage}
+                className="pr-12 h-10 rounded-full border-2 focus-visible:ring-2 focus-visible:ring-primary/20 transition-all"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSendMessage(e);
+                  }
+                }}
+              />
+            </div>
+
+            {/* Botón enviar mejorado */}
+            <Button 
+              type="submit" 
+              size="icon"
+              className={cn(
+                "h-10 w-10 rounded-full shrink-0 transition-all",
+                (newMessage.trim() || imagePreview) && !isSending && !isUploadingImage
+                  ? "bg-gradient-to-br from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-lg hover:shadow-xl hover:scale-105"
+                  : "bg-muted"
+              )}
+              disabled={(isSending || isUploadingImage) || (!newMessage.trim() && !imagePreview)}
+            >
+              {(isSending || isUploadingImage) ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <Send className="h-5 w-5 ml-0.5" />
+              )}
+            </Button>
+          </div>
+
+          {/* Hint text */}
+          <p className="text-[10px] text-muted-foreground ml-12">
+            Presiona Enter para enviar • Shift + Enter para nueva línea
+          </p>
+        </form>
+      </div>
     </div>
   );
 }

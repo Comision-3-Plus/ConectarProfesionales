@@ -209,7 +209,10 @@ export default function ProfilePage() {
               <Button
                 onClick={() => {
                   useAuthStore.getState().logout();
-                  window.location.href = '/login';
+                  // Delay para permitir que se muestre el toast de logout
+                  setTimeout(() => {
+                    window.location.href = '/login';
+                  }, 1500);
                 }}
                 variant="destructive"
                 size="sm"

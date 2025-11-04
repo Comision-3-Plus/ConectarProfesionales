@@ -14,7 +14,7 @@ import {
   FileText,
   Loader2
 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from "sonner"
 
 type KYCEstado = "PENDIENTE" | "EN_REVISION" | "APROBADO" | "RECHAZADO"
 
@@ -62,9 +62,7 @@ const estadoInfo = {
 }
 
 export default function VerificacionKYCPage() {
-  const { toast } = useToast()
   const [kyc, setKyc] = useState<KYCData>(mockKYC)
-  const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState<string | null>(null)
 
   useEffect(() => {
@@ -109,16 +107,9 @@ export default function VerificacionKYCPage() {
         estado: "EN_REVISION"
       })
 
-      toast({
-        title: "✅ Documento subido",
-        description: "Tu documento se subió correctamente",
-      })
+      toast.success("✅ Documento subido correctamente")
     } catch (error) {
-      toast({
-        title: "❌ Error",
-        description: "No se pudo subir el documento",
-        variant: "destructive"
-      })
+      toast.error("❌ No se pudo subir el documento")
     } finally {
       setUploading(null)
     }
@@ -130,21 +121,13 @@ export default function VerificacionKYCPage() {
 
     // Validar tamaño (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      toast({
-        title: "❌ Archivo muy grande",
-        description: "El archivo debe ser menor a 5MB",
-        variant: "destructive"
-      })
+      toast.error("❌ El archivo debe ser menor a 5MB")
       return
     }
 
     // Validar formato
     if (!file.type.startsWith("image/")) {
-      toast({
-        title: "❌ Formato inválido",
-        description: "Solo se aceptan imágenes (JPG, PNG)",
-        variant: "destructive"
-      })
+      toast.error("❌ Solo se aceptan imágenes (JPG, PNG)")
       return
     }
 

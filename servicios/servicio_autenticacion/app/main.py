@@ -13,6 +13,14 @@ import os
 import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../shared'))
 
+# Importar servicio de Firebase Auth
+try:
+    from shared.firebase.auth import create_custom_token
+    FIREBASE_AVAILABLE = True
+except ImportError:
+    FIREBASE_AVAILABLE = False
+    print("⚠️ Firebase Admin SDK no disponible - chat sin autenticación")
+
 from shared.middleware.error_handler import add_exception_handlers
 
 app = FastAPI(
@@ -179,6 +187,42 @@ def reset_password(token: str, new_password: str, db: Session = Depends(get_db))
         "message": "Contraseña actualizada exitosamente",
         "success": True
     }
+
+@app.post("/auth/firebase-token")
+def get_firebase_token(token_data: TokenData):
+    """
+    Genera un token personalizado de Firebase para el usuario autenticado.
+    Este token permite al frontend autenticarse en Firebase Firestore.
+    
+    Args:
+        token_data: Datos del token JWT del usuario (obtenidos del middleware)
+        
+    Returns:
+        dict: Token personalizado de Firebase
+    """
+    if not FIREBASE_AVAILABLE:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Firebase no está configurado"
+        )
+    
+    try:
+        # Crear token personalizado para Firebase
+        firebase_token = create_custom_token(
+            user_id=token_data.user_id,
+            additional_claims={"rol": token_data.rol}
+        )
+        
+        return {
+            "firebase_token": firebase_token,
+            "user_id": token_data.user_id
+        }
+    except Exception as e:
+        print(f"❌ Error al generar token de Firebase: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al generar token de Firebase"
+        )
 
 if __name__ == "__main__":
     import uvicorn

@@ -29,6 +29,7 @@ import {
   Unsubscribe,
 } from 'firebase/firestore';
 import { db } from './config';
+import { firebaseAuthService } from './auth.service';
 
 // ============================================================================
 // TIPOS Y INTERFACES
@@ -87,6 +88,16 @@ export interface UserChat {
 
 class ChatService {
   /**
+   * Asegura que el usuario esté autenticado en Firebase
+   */
+  private async ensureAuthenticated(): Promise<void> {
+    if (!firebaseAuthService.isAuthenticated()) {
+      console.log('🔐 Autenticando en Firebase...');
+      await firebaseAuthService.signIn();
+    }
+  }
+
+  /**
    * Crear o obtener chat existente entre dos usuarios
    */
   async getOrCreateChat(
@@ -97,6 +108,9 @@ class ChatService {
     trabajoId?: string,
     ofertaId?: string
   ): Promise<string> {
+    // Asegurar autenticación en Firebase
+    await this.ensureAuthenticated();
+    
     const participants = [userId1, userId2].sort();
     
     try {
@@ -116,24 +130,26 @@ class ChatService {
       }
       
       // Crear nuevo chat
-      const chatData: Partial<Chat> = {
+      const chatData: Record<string, unknown> = {
         participants,
         participantsData: {
           [userId1]: userData1,
           [userId2]: userData2,
         },
-        trabajoId: trabajoId || undefined,
-        ofertaId: ofertaId || undefined,
-        createdAt: serverTimestamp() as Timestamp,
-        updatedAt: serverTimestamp() as Timestamp,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       };
+      
+      // Solo agregar trabajoId y ofertaId si tienen valor
+      if (trabajoId) chatData.trabajoId = trabajoId;
+      if (ofertaId) chatData.ofertaId = ofertaId;
       
       const docRef = await addDoc(chatsRef, chatData);
       console.log('✅ Nuevo chat creado:', docRef.id);
       
-      // Crear documentos en user_chats para ambos usuarios
+      // Crear documentos en user_chats para ambos usuarios (con 3 segmentos)
       await Promise.all([
-        setDoc(doc(db, `user_chats/${userId1}/${docRef.id}`), {
+        setDoc(doc(db, 'user_chats', userId1, 'chats', docRef.id), {
           lastMessage: '',
           lastMessageTime: serverTimestamp(),
           unreadCount: 0,
@@ -142,7 +158,7 @@ class ChatService {
           otherUserPhoto: userData2.photo || null,
           trabajoId: trabajoId || null,
         }),
-        setDoc(doc(db, `user_chats/${userId2}/${docRef.id}`), {
+        setDoc(doc(db, 'user_chats', userId2, 'chats', docRef.id), {
           lastMessage: '',
           lastMessageTime: serverTimestamp(),
           unreadCount: 0,
@@ -174,15 +190,17 @@ class ChatService {
     try {
       const messagesRef = collection(db, `messages/${chatId}/messages`);
       
-      const messageData: Omit<Message, 'id'> = {
+      const messageData: Record<string, unknown> = {
         senderId,
-        senderName,
-        senderPhoto,
         text,
-        timestamp: serverTimestamp() as Timestamp,
+        timestamp: serverTimestamp(),
         read: false,
         type,
       };
+      
+      // Solo agregar campos opcionales si tienen valor
+      if (senderName) messageData.senderName = senderName;
+      if (senderPhoto) messageData.senderPhoto = senderPhoto;
       
       const docRef = await addDoc(messagesRef, messageData);
       
@@ -203,13 +221,13 @@ class ChatService {
       const otherUserId = participants.find((id: string) => id !== senderId);
       
       if (otherUserId) {
-        await updateDoc(doc(db, `user_chats/${otherUserId}/${chatId}`), {
+        await updateDoc(doc(db, 'user_chats', otherUserId, 'chats', chatId), {
           lastMessage: text,
           lastMessageTime: serverTimestamp(),
           unreadCount: increment(1),
         });
         
-        await updateDoc(doc(db, `user_chats/${senderId}/${chatId}`), {
+        await updateDoc(doc(db, 'user_chats', senderId, 'chats', chatId), {
           lastMessage: text,
           lastMessageTime: serverTimestamp(),
         });
@@ -237,16 +255,18 @@ class ChatService {
     try {
       const messagesRef = collection(db, `messages/${chatId}/messages`);
       
-      const messageData: Omit<Message, 'id'> = {
+      const messageData: Record<string, unknown> = {
         senderId,
-        senderName,
-        senderPhoto,
         text: caption,
         imageUrl,
-        timestamp: serverTimestamp() as Timestamp,
+        timestamp: serverTimestamp(),
         read: false,
         type: 'image',
       };
+      
+      // Solo agregar campos opcionales si tienen valor
+      if (senderName) messageData.senderName = senderName;
+      if (senderPhoto) messageData.senderPhoto = senderPhoto;
       
       const docRef = await addDoc(messagesRef, messageData);
       
@@ -267,13 +287,13 @@ class ChatService {
       const otherUserId = participants.find((id: string) => id !== senderId);
       
       if (otherUserId) {
-        await updateDoc(doc(db, `user_chats/${otherUserId}/${chatId}`), {
+        await updateDoc(doc(db, 'user_chats', otherUserId, 'chats', chatId), {
           lastMessage: caption || '📷 Imagen',
           lastMessageTime: serverTimestamp(),
           unreadCount: increment(1),
         });
         
-        await updateDoc(doc(db, `user_chats/${senderId}/${chatId}`), {
+        await updateDoc(doc(db, 'user_chats', senderId, 'chats', chatId), {
           lastMessage: caption || '📷 Imagen',
           lastMessageTime: serverTimestamp(),
         });
@@ -326,8 +346,15 @@ class ChatService {
     callback: (chats: UserChat[]) => void,
     errorCallback?: (error: Error) => void
   ): Unsubscribe {
+    // Autenticar primero (no bloquear la suscripción)
+    this.ensureAuthenticated().catch(err => {
+      console.error('❌ Error al autenticar para suscripción:', err);
+      if (errorCallback) errorCallback(err);
+    });
+    
     try {
-      const userChatsRef = collection(db, `user_chats/${userId}`);
+      // Corregir: usar collection con 3 segmentos (impar)
+      const userChatsRef = collection(db, 'user_chats', userId, 'chats');
       const q = query(userChatsRef, orderBy('lastMessageTime', 'desc'));
       
       return onSnapshot(
@@ -370,7 +397,7 @@ class ChatService {
       await Promise.all(updates);
       
       // Resetear contador
-      await updateDoc(doc(db, `user_chats/${userId}/${chatId}`), {
+      await updateDoc(doc(db, 'user_chats', userId, 'chats', chatId), {
         unreadCount: 0,
       });
       
@@ -404,7 +431,7 @@ class ChatService {
    */
   async getTotalUnreadCount(userId: string): Promise<number> {
     try {
-      const userChatsRef = collection(db, `user_chats/${userId}`);
+      const userChatsRef = collection(db, 'user_chats', userId, 'chats');
       const snapshot = await getDocs(userChatsRef);
       
       let total = 0;

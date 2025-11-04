@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -265,7 +266,21 @@ export function Navbar() {
                     <DropdownMenuSeparator className="my-2" />
                     
                     <DropdownMenuItem 
-                      onClick={logout} 
+                      onClick={() => {
+                        // Mostrar toast primero
+                        toast.success('👋 Sesión cerrada correctamente', {
+                          description: 'Hasta pronto, esperamos verte de nuevo',
+                          duration: 4000,
+                        });
+                        
+                        // Luego hacer logout
+                        logout();
+                        
+                        // Delay para permitir que se muestre el toast
+                        setTimeout(() => {
+                          window.location.href = '/';
+                        }, 1500);
+                      }} 
                       className="cursor-pointer py-2 rounded-md text-red-600 focus:text-red-600 focus:bg-red-50"
                     >
                       <LogOut className="mr-3 h-4 w-4" />
@@ -415,7 +430,21 @@ export function Navbar() {
                     <DropdownMenuSeparator className="my-2" />
                     
                     <DropdownMenuItem 
-                      onClick={logout} 
+                      onClick={() => {
+                        // Mostrar toast primero
+                        toast.success('👋 Sesión cerrada correctamente', {
+                          description: 'Hasta pronto, esperamos verte de nuevo',
+                          duration: 4000,
+                        });
+                        
+                        // Luego hacer logout
+                        logout();
+                        
+                        // Delay para permitir que se muestre el toast
+                        setTimeout(() => {
+                          window.location.href = '/';
+                        }, 1500);
+                      }} 
                       className="cursor-pointer py-2.5 rounded-md text-red-600 focus:text-red-600 focus:bg-red-50"
                     >
                       <LogOut className="mr-3 h-4 w-4" />

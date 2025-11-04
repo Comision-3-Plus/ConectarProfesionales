@@ -44,6 +44,12 @@ export const useChatList = () => {
 
     setIsLoading(true);
 
+    // Timeout de seguridad para evitar loading infinito
+    const loadingTimeout = setTimeout(() => {
+      setIsLoading(false);
+      console.warn('⚠️ Timeout al cargar chats - posible problema de conexión');
+    }, 10000); // 10 segundos
+
     let unsubscribe: Unsubscribe | undefined;
 
     try {
@@ -95,6 +101,7 @@ export const useChatList = () => {
     }
 
     return () => {
+      clearTimeout(loadingTimeout);
       if (unsubscribe) {
         unsubscribe();
       }

@@ -125,7 +125,10 @@ export default function ConfiguracionPage() {
       // TODO: Implementar endpoint de eliminación de cuenta
       toast.success('Cuenta eliminada correctamente');
       logout();
-      router.push('/');
+      // Delay para permitir que se muestre el toast de logout
+      setTimeout(() => {
+        router.push('/');
+      }, 1500);
     } catch {
       toast.error('Error al eliminar la cuenta');
     } finally {

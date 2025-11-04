@@ -7,6 +7,7 @@ import { Toaster } from "sonner";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CursorGlow } from "@/components/features/CursorGlow";
+import { ErrorBoundary } from "@/components/error/ErrorBoundary";
 import {
   generateSEO,
   generateOrganizationSchema,
@@ -82,13 +83,15 @@ export default function RootLayout({
         />
         
         <Providers>
-          <CursorGlow />
-          <div className="flex min-h-screen flex-col">
-            <Navbar />
-            <main className="flex-1">{children}</main>
-            <Footer />
-          </div>
-          <Toaster position="top-right" richColors />
+          <ErrorBoundary>
+            <CursorGlow />
+            <div className="flex min-h-screen flex-col">
+              <Navbar />
+              <main className="flex-1">{children}</main>
+              <Footer />
+            </div>
+            <Toaster position="top-right" richColors />
+          </ErrorBoundary>
         </Providers>
       </body>
     </html>

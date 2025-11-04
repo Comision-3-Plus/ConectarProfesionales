@@ -52,4 +52,15 @@ export const userService = {
     });
     return response.data;
   },
+
+  /**
+   * GET /api/v1/users/search?q=query
+   * Buscar usuarios (requiere autenticación)
+   */
+  searchUsers: async (query: string): Promise<UserRead[]> => {
+    const response = await api.get<UserRead[]>('/users/search', {
+      params: { q: query },
+    });
+    return response.data;
+  },
 };
