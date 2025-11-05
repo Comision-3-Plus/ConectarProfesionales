@@ -1,59 +1,44 @@
-"use client"
+'use client';
 
-import { useState } from "react"
-import { useQuery } from "@tanstack/react-query"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Clock, CheckCircle2, XCircle, MessageSquare, Calendar, Loader2 } from "lucide-react"
-import { professionalService } from "@/lib/services/professionalService"
-import Link from "next/link"
+import React from 'react';
+import Link from 'next/link';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Clock, CheckCircle2, XCircle, MessageSquare, Calendar, Loader2 } from 'lucide-react';
+import { useOfertas } from '@/hooks/ofertas';
+import { EstadoOferta, estadoOfertaConfig } from '@/types/forms/ofertas';
 
-type EstadoOferta = "OFERTADO" | "ACEPTADO" | "RECHAZADO" | "EXPIRADO"
-
-const estadoColors = {
-  OFERTADO: "bg-blue-500",
-  ACEPTADO: "bg-green-500",
-  RECHAZADO: "bg-red-500",
-  EXPIRADO: "bg-gray-500"
-}
-
-const estadoLabels = {
-  OFERTADO: "Pendiente",
-  ACEPTADO: "Aceptada",
-  RECHAZADO: "Rechazada",
-  EXPIRADO: "Expirada"
-}
-
-const estadoIcons = {
-  OFERTADO: Clock,
-  ACEPTADO: CheckCircle2,
-  RECHAZADO: XCircle,
-  EXPIRADO: Clock
-}
-
+/**
+ * Página de Ofertas Enviadas (Profesionales)
+ * 
+ * LIMPIA Y SIMPLE:
+ * - Solo 1 hook: useOfertas
+ * - 1 useState local para filtro (UI state)
+ * - 0 useEffect
+ * - 0 fetch manual
+ */
 export default function OfertasProfesionalPage() {
-  const [filtro, setFiltro] = useState<EstadoOferta | "TODOS">("TODOS")
+  // 🎯 Estado local SOLO para UI (filtro activo)
+  const [filtro, setFiltro] = React.useState<EstadoOferta | 'TODOS'>('TODOS');
+  
+  // 🔧 Hook de query (el estado del servidor lo maneja React Query)
+  const { data: ofertas = [], isLoading } = useOfertas();
 
-  // Query para obtener ofertas
-  const { data: ofertas = [], isLoading } = useQuery({
-    queryKey: ['professional-ofertas'],
-    queryFn: professionalService.listOfertas,
-    staleTime: 30000,
-  })
-
-  const ofertasFiltradas = filtro === "TODOS" 
-    ? ofertas 
-    : ofertas.filter((o: any) => o.estado === filtro)
-
+  
+  // Filtrar ofertas por estado seleccionado
+  const ofertasFiltradas =
+    filtro === 'TODOS' ? ofertas : ofertas.filter((o: any) => o.estado === filtro);
+  
+  // Contadores para los badges de filtros
   const contadores = {
     TODOS: ofertas.length,
-    OFERTADO: ofertas.filter((o: any) => o.estado === "OFERTADO").length,
-    ACEPTADO: ofertas.filter((o: any) => o.estado === "ACEPTADO").length,
-    RECHAZADO: ofertas.filter((o: any) => o.estado === "RECHAZADO").length,
-    EXPIRADO: ofertas.filter((o: any) => o.estado === "EXPIRADO").length
-  }
-
+    [EstadoOferta.OFERTADO]: ofertas.filter((o: any) => o.estado === EstadoOferta.OFERTADO).length,
+    [EstadoOferta.ACEPTADO]: ofertas.filter((o: any) => o.estado === EstadoOferta.ACEPTADO).length,
+    [EstadoOferta.RECHAZADO]: ofertas.filter((o: any) => o.estado === EstadoOferta.RECHAZADO).length,
+  };
+  
+  // Loading state
   if (isLoading) {
     return (
       <div className="container mx-auto p-6">
@@ -61,58 +46,57 @@ export default function OfertasProfesionalPage() {
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </div>
-    )
+    );
   }
-
+  
   return (
     <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
       <div>
         <h1 className="text-3xl font-bold">Mis Ofertas Enviadas</h1>
-        <p className="text-muted-foreground">
-          Ofertas que has enviado a tus clientes
-        </p>
+        <p className="text-muted-foreground">Ofertas que has enviado a tus clientes</p>
       </div>
-
+      
       {/* Filtros */}
       <div className="flex gap-2 flex-wrap">
         <Button
-          variant={filtro === "TODOS" ? "default" : "outline"}
-          onClick={() => setFiltro("TODOS")}
+          variant={filtro === 'TODOS' ? 'default' : 'outline'}
+          onClick={() => setFiltro('TODOS')}
         >
           Todas ({contadores.TODOS})
         </Button>
         <Button
-          variant={filtro === "OFERTADO" ? "default" : "outline"}
-          onClick={() => setFiltro("OFERTADO")}
+          variant={filtro === EstadoOferta.OFERTADO ? 'default' : 'outline'}
+          onClick={() => setFiltro(EstadoOferta.OFERTADO)}
         >
           <Clock className="h-4 w-4 mr-2" />
-          Pendientes ({contadores.OFERTADO})
+          Pendientes ({contadores[EstadoOferta.OFERTADO]})
         </Button>
         <Button
-          variant={filtro === "ACEPTADO" ? "default" : "outline"}
-          onClick={() => setFiltro("ACEPTADO")}
+          variant={filtro === EstadoOferta.ACEPTADO ? 'default' : 'outline'}
+          onClick={() => setFiltro(EstadoOferta.ACEPTADO)}
         >
           <CheckCircle2 className="h-4 w-4 mr-2" />
-          Aceptadas ({contadores.ACEPTADO})
+          Aceptadas ({contadores[EstadoOferta.ACEPTADO]})
         </Button>
         <Button
-          variant={filtro === "RECHAZADO" ? "default" : "outline"}
-          onClick={() => setFiltro("RECHAZADO")}
+          variant={filtro === EstadoOferta.RECHAZADO ? 'default' : 'outline'}
+          onClick={() => setFiltro(EstadoOferta.RECHAZADO)}
         >
           <XCircle className="h-4 w-4 mr-2" />
-          Rechazadas ({contadores.RECHAZADO})
+          Rechazadas ({contadores[EstadoOferta.RECHAZADO]})
         </Button>
       </div>
-
+      
       {/* Lista de ofertas */}
       {ofertasFiltradas.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <MessageSquare className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-semibold mb-2">
-              {filtro === "TODOS" 
-                ? "No has enviado ofertas aún"
-                : `No tienes ofertas ${filtro === "TODOS" ? "" : estadoLabels[filtro].toLowerCase()}`}
+              {filtro === 'TODOS'
+                ? 'No has enviado ofertas aún'
+                : `No tienes ofertas ${estadoOfertaConfig[filtro]?.label.toLowerCase()}`}
             </h3>
             <p className="text-muted-foreground mb-6">
               Cuando chatees con clientes, puedes enviarles ofertas formales
@@ -128,7 +112,10 @@ export default function OfertasProfesionalPage() {
       ) : (
         <div className="space-y-4">
           {ofertasFiltradas.map((oferta: any) => {
-            const Icon = estadoIcons[oferta.estado as EstadoOferta]
+            const config = estadoOfertaConfig[oferta.estado as EstadoOferta];
+            const IconEstado = oferta.estado === EstadoOferta.OFERTADO ? Clock :
+                               oferta.estado === EstadoOferta.ACEPTADO ? CheckCircle2 : XCircle;
+            
             return (
               <Card key={oferta.id}>
                 <CardHeader>
@@ -136,31 +123,32 @@ export default function OfertasProfesionalPage() {
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <CardTitle className="text-lg">
-                          Oferta para {oferta.cliente_nombre || "Cliente"}
+                          Oferta para {oferta.cliente_nombre || 'Cliente'}
                         </CardTitle>
-                        <Badge className={estadoColors[oferta.estado as EstadoOferta]}>
-                          <Icon className="h-3 w-3 mr-1" />
-                          {estadoLabels[oferta.estado as EstadoOferta]}
+                        <Badge className={config.color}>
+                          <IconEstado className="h-3 w-3 mr-1" />
+                          {config.label}
                         </Badge>
                       </div>
                       <CardDescription className="flex items-center gap-2">
                         <Calendar className="h-4 w-4" />
-                        Enviada el {new Date(oferta.created_at).toLocaleDateString()}
+                        Enviada el {new Date(oferta.fecha_creacion).toLocaleDateString()}
                       </CardDescription>
                     </div>
                     <div className="text-right">
                       <div className="text-2xl font-bold text-green-600">
-                        ${oferta.precio?.toLocaleString()}
+                        ${oferta.precio_final?.toLocaleString()}
                       </div>
                     </div>
                   </div>
                 </CardHeader>
+                
                 <CardContent className="space-y-4">
                   <div>
                     <h4 className="font-medium mb-2">Descripción del trabajo:</h4>
                     <p className="text-muted-foreground">{oferta.descripcion}</p>
                   </div>
-
+                  
                   <div className="flex gap-2">
                     <Link href={`/chat/${oferta.chat_id}`} className="flex-1">
                       <Button variant="outline" className="w-full">
@@ -168,16 +156,14 @@ export default function OfertasProfesionalPage() {
                         Ver Chat
                       </Button>
                     </Link>
-
-                    {oferta.estado === "ACEPTADO" && oferta.trabajo_id && (
-                      <Link href={`/dashboard/profesional/trabajos`} className="flex-1">
-                        <Button className="w-full">
-                          Ver Trabajo
-                        </Button>
+                    
+                    {oferta.estado === EstadoOferta.ACEPTADO && (
+                      <Link href="/dashboard/profesional/trabajos" className="flex-1">
+                        <Button className="w-full">Ver Trabajo</Button>
                       </Link>
                     )}
-
-                    {oferta.estado === "RECHAZADO" && (
+                    
+                    {oferta.estado === EstadoOferta.RECHAZADO && (
                       <Link href={`/chat/${oferta.chat_id}`} className="flex-1">
                         <Button variant="default" className="w-full">
                           Enviar Nueva Oferta
@@ -185,9 +171,9 @@ export default function OfertasProfesionalPage() {
                       </Link>
                     )}
                   </div>
-
-                  {oferta.estado === "ACEPTADO" && (
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 mt-4">
+                  
+                  {oferta.estado === EstadoOferta.ACEPTADO && (
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                       <div className="flex items-start gap-3">
                         <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
                         <div>
@@ -201,10 +187,10 @@ export default function OfertasProfesionalPage() {
                   )}
                 </CardContent>
               </Card>
-            )
+            );
           })}
         </div>
       )}
     </div>
-  )
+  );
 }

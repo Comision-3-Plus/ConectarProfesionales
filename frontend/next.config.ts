@@ -101,6 +101,12 @@ const nextConfig: NextConfig = {
   // Redirects de seguridad
   async redirects() {
     return [
+      // Redirect de /profile/ a /profesional/ (backwards compatibility)
+      {
+        source: '/profile/:professional_id',
+        destination: '/profesional/:professional_id',
+        permanent: true,
+      },
       {
         source: '/home',
         destination: '/',

@@ -16,6 +16,14 @@ export function ProfessionalCard({ professional }: ProfessionalCardProps) {
   const { nombre, apellido, oficio, tarifa_por_hora, calificacion_promedio, cantidad_resenas, avatar_url, nivel_profesional } =
     professional;
 
+  // Extraer el ID correctamente (puede venir como 'id' o 'profesional_id')
+  const professionalId = professional.id || (professional as any).profesional_id;
+  
+  // Debug: verificar si el ID es válido
+  if (!professionalId || professionalId === 'undefined') {
+    console.error('❌ ProfessionalCard: ID inválido', { professional });
+  }
+
   const nivelLabels: Record<string, string> = {
     BRONCE: 'Bronce',
     PLATA: 'Plata',
@@ -36,7 +44,7 @@ export function ProfessionalCard({ professional }: ProfessionalCardProps) {
       transition={{ duration: 0.2 }}
       className="h-full"
     >
-      <Link href={`/profile/${professional.id}`}>
+      <Link href={`/profesional/${professionalId}`}>
         <Card className="h-full cursor-pointer border border-slate-200 shadow-sm transition-shadow hover:shadow-md">
           <CardContent className="p-6">
             <div className="flex items-start space-x-4">

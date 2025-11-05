@@ -188,6 +188,16 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
       NODE_ENV: development
+      # Firebase Configuration
+      NEXT_PUBLIC_FIREBASE_API_KEY: AIzaSyBwmhxN2Jw693drSLGv_YYNNM-rngcgw5k
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: conectar-profesionales.firebaseapp.com
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: conectar-profesionales
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: conectar-profesionales.firebasestorage.app
+      NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: 488751111545
+      NEXT_PUBLIC_FIREBASE_APP_ID: 1:488751111545:web:3fc61477916a8d8c6e63a8
+      NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: G-1FQ5WP0T11
+      NEXT_PUBLIC_FIREBASE_DATABASE_URL: https://conectar-profesionales-default-rtdb.firebaseio.com
+      NEXT_PUBLIC_FIREBASE_VAPID_KEY: S_-B9iu1-WoVUDsqT190rjma_HJwBGSaivLoqww5Y38
     ports:
       - "3000:3000"
     volumes:

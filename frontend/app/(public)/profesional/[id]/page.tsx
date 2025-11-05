@@ -33,10 +33,11 @@ export default function PerfilPublicoProfesionalPage() {
   const [isContacting, setIsContacting] = useState(false)
 
   // Query para obtener perfil público
-  const { data: profile, isLoading: loadingProfile } = useQuery({
+  const { data: profile, isLoading: loadingProfile, error: profileError } = useQuery({
     queryKey: ['public-professional-profile', profesionalId],
     queryFn: () => publicService.getProfessionalProfile(profesionalId),
     staleTime: 60000, // 1 minuto
+    retry: false, // No reintentar si falla
   })
 
   // Query para obtener portfolio
@@ -44,6 +45,8 @@ export default function PerfilPublicoProfesionalPage() {
     queryKey: ['public-professional-portfolio', profesionalId],
     queryFn: () => publicService.getProfessionalPortfolio(profesionalId),
     staleTime: 60000,
+    retry: false,
+    enabled: !!profile, // Solo cargar portfolio si el perfil existe
   })
 
   const isLoading = loadingProfile || loadingPortfolio
@@ -58,16 +61,16 @@ export default function PerfilPublicoProfesionalPage() {
     )
   }
 
-  if (!profile) {
+  if (!profile || profileError) {
     return (
       <div className="container mx-auto p-6 max-w-6xl">
         <Card>
           <CardContent className="py-12 text-center">
-            <h3 className="text-lg font-semibold mb-2">Profesional no encontrado</h3>
+            <h3 className="text-lg font-semibold mb-2">Perfil no encontrado</h3>
             <p className="text-muted-foreground mb-4">
-              El perfil que buscas no existe o ha sido eliminado
+              El perfil que buscas no existe o no está disponible
             </p>
-            <Link href="/explorar">
+            <Link href="/explorar" className="mt-4 inline-block">
               <Button>Explorar Profesionales</Button>
             </Link>
           </CardContent>
@@ -75,6 +78,10 @@ export default function PerfilPublicoProfesionalPage() {
       </div>
     )
   }
+
+  const nombreCompleto = `${profile.nombre} ${profile.apellido}`
+  const serviciosInstantaneos: any[] = [] // TODO: Add to backend response
+  const resenas = profile.resenas || []
 
   const renderStars = (rating: number) => {
     return (
@@ -100,14 +107,18 @@ export default function PerfilPublicoProfesionalPage() {
     PLATINO: "bg-purple-600 text-white"
   }
 
-  const serviciosInstantaneos = profile.servicios_instantaneos || []
-  const resenas = profile.resenas || []
-
   /**
    * Función para manejar el contacto con el profesional
    * Crea o obtiene un chat room existente y redirige al usuario
    */
   const handleContactProfessional = async () => {
+    console.log('🚀 Iniciando contacto con profesional...', {
+      profesionalId,
+      userId: user?.id,
+      userName: user ? `${user.nombre} ${user.apellido}` : 'N/A',
+      profesionalName: nombreCompleto
+    })
+
     if (!isAuthenticated || !user) {
       toast.error('Debes iniciar sesión para contactar al profesional', {
         description: 'Te redirigiremos a la página de inicio de sesión',
@@ -124,21 +135,25 @@ export default function PerfilPublicoProfesionalPage() {
     setIsContacting(true)
 
     try {
+      console.log('📞 Creando o obteniendo chat room...')
+      
       // Crear o obtener el chat room
       const chatId = await chatService.getOrCreateChatRoom(
         profesionalId,
         user.id,
         `${user.nombre} ${user.apellido}`,
-        profile.nombre_completo
+        nombreCompleto
       )
+
+      console.log('✅ Chat room creado/obtenido:', chatId)
 
       // Redirigir al chat
       toast.success('Redirigiendo al chat...')
       router.push(`/chat/${chatId}`)
     } catch (error) {
-      console.error('Error al crear chat:', error)
+      console.error('❌ Error al crear chat:', error)
       toast.error('No se pudo iniciar el chat', {
-        description: 'Por favor, intenta nuevamente más tarde',
+        description: error instanceof Error ? error.message : 'Por favor, intenta nuevamente más tarde',
       })
     } finally {
       setIsContacting(false)
@@ -153,23 +168,21 @@ export default function PerfilPublicoProfesionalPage() {
           <div className="flex flex-col md:flex-row gap-6">
             <div className="relative">
               <Image
-                src={profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${profile.nombre_completo}`}
-                alt={profile.nombre_completo}
+                src={profile.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${nombreCompleto}`}
+                alt={nombreCompleto}
                 width={120}
                 height={120}
                 className="rounded-full"
               />
-              {profile.kyc_estado === "APROBADO" && (
-                <div className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-2">
-                  <CheckCircle2 className="h-6 w-6 text-white" />
-                </div>
-              )}
+              <div className="absolute bottom-0 right-0 bg-blue-500 rounded-full p-2">
+                <CheckCircle2 className="h-6 w-6 text-white" />
+              </div>
             </div>
 
             <div className="flex-1 space-y-3">
               <div>
                 <div className="flex items-center gap-3 flex-wrap">
-                  <h1 className="text-3xl font-bold">{profile.nombre_completo}</h1>
+                  <h1 className="text-3xl font-bold">{nombreCompleto}</h1>
                   {profile.nivel && (
                     <Badge className={nivelColors[profile.nivel as keyof typeof nivelColors]}>
                       <Award className="h-4 w-4 mr-1" />
@@ -185,11 +198,6 @@ export default function PerfilPublicoProfesionalPage() {
                       ({profile.total_resenas || 0} reseñas)
                     </span>
                   </div>
-                  <span className="text-muted-foreground">•</span>
-                  <div className="flex items-center gap-1 text-muted-foreground">
-                    <Briefcase className="h-4 w-4" />
-                    {profile.trabajos_completados || 0} trabajos completados
-                  </div>
                 </div>
               </div>
 
@@ -201,7 +209,7 @@ export default function PerfilPublicoProfesionalPage() {
                 ))}
               </div>
 
-              <div className="grid gap-4 md:grid-cols-3">
+              <div className="grid gap-4 md:grid-cols-2">
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-5 w-5 text-muted-foreground" />
                   <div>
@@ -214,15 +222,6 @@ export default function PerfilPublicoProfesionalPage() {
                   <div>
                     <p className="text-sm text-muted-foreground">Radio de cobertura</p>
                     <p className="font-semibold">{profile.radio_cobertura_km || 0} km</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm text-muted-foreground">Miembro desde</p>
-                    <p className="font-semibold">
-                      {new Date(profile.created_at).toLocaleDateString()}
-                    </p>
                   </div>
                 </div>
               </div>

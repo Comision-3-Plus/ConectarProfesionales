@@ -68,15 +68,28 @@ export const chatService = {
     currentUserName: string,
     otherUserName: string
   ): Promise<string> => {
+    console.log('🔍 createOrGetConversation llamado con:', {
+      currentUserId,
+      otherUserId,
+      currentUserName,
+      otherUserName,
+      databaseConfigured: !!database
+    })
+
     if (!database) {
-      throw new Error('Firebase no está configurado. Por favor configura las credenciales.');
+      const error = 'Firebase no está configurado. Por favor configura las credenciales.';
+      console.error('❌', error);
+      throw new Error(error);
     }
+
+    console.log('✅ Firebase database disponible, buscando conversación existente...')
 
     // Buscar conversación existente
     const conversationsRef = ref(database, 'conversations');
     const snapshot = await get(conversationsRef);
     
     if (snapshot.exists()) {
+      console.log('📚 Encontradas conversaciones existentes, buscando match...')
       const conversations = snapshot.val();
       for (const [chatId, conv] of Object.entries(conversations as Record<string, ChatConversation>)) {
         const participants = Object.keys(conv.participants);
@@ -84,15 +97,21 @@ export const chatService = {
           participants.includes(currentUserId) &&
           participants.includes(otherUserId)
         ) {
+          console.log('✅ Conversación existente encontrada:', chatId)
           return chatId;
         }
       }
+      console.log('📝 No se encontró conversación existente, creando nueva...')
+    } else {
+      console.log('📝 No hay conversaciones, creando la primera...')
     }
 
     // Crear nueva conversación
     const newConvRef = push(ref(database, 'conversations'));
     const chatId = newConvRef.key!;
     
+    console.log('🆕 Creando nueva conversación con ID:', chatId)
+
     await set(newConvRef, {
       participants: {
         [currentUserId]: {
@@ -107,6 +126,8 @@ export const chatService = {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
+
+    console.log('✅ Conversación creada exitosamente:', chatId)
 
     return chatId;
   },

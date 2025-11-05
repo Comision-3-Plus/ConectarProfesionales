@@ -27,7 +27,7 @@ from shared.models.oferta import Oferta
 from shared.models.enums import VerificationStatus, UserRole
 from shared.schemas.professional import (
     ProfessionalCreate, ProfessionalUpdate, ProfessionalResponse,
-    KYCSubmitRequest, KYCStatusResponse
+    KYCSubmitRequest, KYCStatusResponse, PublicProfileResponse
 )
 from shared.schemas.search import SearchRequest, SearchResponse, ProfessionalSearchResult
 from shared.schemas.oficio import OficioCreate, OficioResponse, OficioRead
@@ -706,14 +706,26 @@ async def search_professionals_endpoint(
 # PUBLIC ENDPOINTS
 # ============================================================================
 
-@app.get("/public/professional/{prof_id}", response_model=ProfessionalResponse)
+@app.get("/public/professional/{prof_id}", response_model=PublicProfileResponse)
 async def get_public_professional_profile(
-    prof_id: int,
+    prof_id: str,
     db: Session = Depends(get_db)
 ):
     """Obtiene el perfil público de un profesional"""
-    professional = db.query(Profesional).filter(
-        Profesional.id == prof_id
+    try:
+        prof_uuid = UUID(prof_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="ID de profesional inválido")
+    
+    from sqlalchemy.orm import joinedload
+    from shared.models.resena import Resena
+    
+    professional = db.query(Profesional).options(
+        joinedload(Profesional.usuario),
+        joinedload(Profesional.oficios),
+        joinedload(Profesional.portfolio_items).joinedload(PortfolioItem.imagenes),
+    ).filter(
+        Profesional.id == prof_uuid
     ).first()
     
     if not professional:
@@ -730,16 +742,27 @@ async def get_public_professional_profile(
             detail="Profesional no disponible"
         )
     
-    return ProfessionalResponse.from_professional(professional)
+    # Cargar reseñas manualmente (relación no directa)
+    resenas = db.query(Resena).filter(
+        Resena.profesional_id == prof_uuid
+    ).all()
+    professional.resenas_recibidas = resenas
+    
+    return PublicProfileResponse.from_professional(professional)
 
 @app.get("/public/professional/{prof_id}/portfolio", response_model=List[PortfolioResponse])
 async def get_public_portfolio(
-    prof_id: int,
+    prof_id: str,
     db: Session = Depends(get_db)
 ):
     """Obtiene el portfolio público de un profesional"""
+    try:
+        prof_uuid = UUID(prof_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="ID de profesional inválido")
+    
     professional = db.query(Profesional).filter(
-        Profesional.id == prof_id
+        Profesional.id == prof_uuid
     ).first()
     
     if not professional:
@@ -749,7 +772,7 @@ async def get_public_portfolio(
         )
     
     portfolio_items = db.query(PortfolioItem).filter(
-        PortfolioItem.professional_id == prof_id
+        PortfolioItem.profesional_id == prof_uuid
     ).all()
     
     return portfolio_items
